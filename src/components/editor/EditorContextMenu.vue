@@ -33,11 +33,11 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { useI18n } from '../../i18n'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'
-import { readNativeClipboardText } from '../../services/nativeClipboard.js'
+import { readNativeClipboardText } from '../../services/nativeClipboard.ts'
 
 const props = defineProps({
   visible: { type: Boolean, default: false },

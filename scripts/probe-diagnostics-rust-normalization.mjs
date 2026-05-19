@@ -49,7 +49,7 @@ try {
   const {
     normalizeProblem,
     normalizeProblems,
-  } = await vite.ssrLoadModule('/src/services/documentIntelligence/diagnostics.js')
+  } = await vite.ssrLoadModule('/src/services/documentIntelligence/diagnostics.ts')
 
   const problem = {
     sourcePath: ' /tmp/main.tex ',

@@ -45,7 +45,7 @@ try {
   const {
     createPdfRestoreLifecycle,
     waitForPdfRestoreFrames,
-  } = await vite.ssrLoadModule('/src/editor/pdfRestoreTiming.js')
+  } = await vite.ssrLoadModule('/src/editor/pdfRestoreTiming.ts')
 
   const firstScheduler = createManualFrameScheduler()
   const firstLifecycle = createPdfRestoreLifecycle({ scheduler: firstScheduler })

@@ -10,7 +10,7 @@ assert.match(
 )
 assert.match(
   componentSource,
-  /import \{ createEditorFocusRetryLifecycle \} from '..\/..\/editor\/editorFocusRetryTiming\.js'/,
+  /import \{ createEditorFocusRetryLifecycle \} from '..\/..\/editor\/editorFocusRetryTiming\.ts'/,
   'ReferenceCitedInPanel must use the shared editor focus retry lifecycle controller'
 )
 assert.match(

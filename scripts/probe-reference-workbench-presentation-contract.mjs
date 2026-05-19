@@ -14,7 +14,7 @@ import {
   resolveReferenceDetailMaxWidth,
   resolveReferencePdfPath,
   shouldReconcileReferenceDetailWidth,
-} from '../src/domains/references/referenceWorkbenchPresentation.js'
+} from '../src/domains/references/referenceWorkbenchPresentation.ts'
 
 assert.equal(REFERENCE_WORKBENCH_DETAIL_CLOSE_RESET_DELAY_MS, 680)
 
@@ -185,11 +185,11 @@ assert.deepEqual(emptyCollectionMenuGroups[1].items[0].children, [
 ])
 
 const workbenchSource = await readFile('src/components/references/ReferenceLibraryWorkbench.vue', 'utf8')
-const actionsSource = await readFile('src/composables/references/useReferenceLibraryActions.js', 'utf8')
+const actionsSource = await readFile('src/composables/references/useReferenceLibraryActions.ts', 'utf8')
 
 assert.match(
   workbenchSource,
-  /from '..\/..\/domains\/references\/referenceWorkbenchPresentation\.js'/,
+  /from '..\/..\/domains\/references\/referenceWorkbenchPresentation\.ts'/,
   'ReferenceLibraryWorkbench must use the reference workbench presentation helper',
 )
 assert.match(

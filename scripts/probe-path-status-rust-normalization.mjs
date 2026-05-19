@@ -66,7 +66,7 @@ try {
   const {
     getPathStatus,
     getWorkspacePathStatus,
-  } = await vite.ssrLoadModule('/src/services/pathStatus.js')
+  } = await vite.ssrLoadModule('/src/services/pathStatus.ts')
 
   const fileStatus = await getPathStatus(' /tmp/scribeflow-path.md ')
   const numericStatus = await getWorkspacePathStatus(42)

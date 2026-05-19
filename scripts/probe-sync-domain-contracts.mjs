@@ -26,24 +26,24 @@ function assertSync(value, label) {
 }
 
 try {
-  const fileTypes = await vite.ssrLoadModule('/src/utils/fileTypes.js')
-  const pathUtils = await vite.ssrLoadModule('/src/utils/path.js')
-  const workspaceProtocol = await vite.ssrLoadModule('/src/utils/workspaceProtocol.js')
-  const fileMetadata = await vite.ssrLoadModule('/src/composables/useFileMetadata.js')
-  const { createFileContentRuntime } = await vite.ssrLoadModule('/src/domains/files/fileContentRuntime.js')
-  const { activateOrOpenPaneTab } = await vite.ssrLoadModule('/src/domains/editor/paneTabs.js')
+  const fileTypes = await vite.ssrLoadModule('/src/utils/fileTypes.ts')
+  const pathUtils = await vite.ssrLoadModule('/src/utils/path.ts')
+  const workspaceProtocol = await vite.ssrLoadModule('/src/utils/workspaceProtocol.ts')
+  const fileMetadata = await vite.ssrLoadModule('/src/composables/useFileMetadata.ts')
+  const { createFileContentRuntime } = await vite.ssrLoadModule('/src/domains/files/fileContentRuntime.ts')
+  const { activateOrOpenPaneTab } = await vite.ssrLoadModule('/src/domains/editor/paneTabs.ts')
   const { resolveDocumentWorkspaceTextRoute } = await vite.ssrLoadModule(
-    '/src/domains/document/documentWorkspacePreviewRuntime.js',
+    '/src/domains/document/documentWorkspacePreviewRuntime.ts',
   )
   const { resolveExtensionTargetContext } = await vite.ssrLoadModule(
-    '/src/domains/extensions/extensionTargetContext.js',
+    '/src/domains/extensions/extensionTargetContext.ts',
   )
   const {
     getDocumentWorkflowKind,
     isDocumentWorkflowSource,
     getPreferredWorkflowPreviewKind,
     createWorkflowPreviewPath,
-  } = await vite.ssrLoadModule('/src/domains/document/documentWorkflowPolicy.js')
+  } = await vite.ssrLoadModule('/src/domains/document/documentWorkflowPolicy.ts')
 
   assert.equal(assertSync(fileTypes.isNewTab('newtab:home'), 'isNewTab'), true)
   assert.equal(assertSync(fileTypes.isPreviewPath('preview:/tmp/a.md'), 'isPreviewPath'), true)
@@ -59,7 +59,7 @@ try {
   assert.equal(assertSync(fileTypes.isBinaryFile('/tmp/paper.pdf'), 'isBinaryFile'), true)
   assert.equal(assertSync(fileTypes.isBinaryFile('/tmp/note.md'), 'isBinaryFile markdown'), false)
 
-  const storeSource = await readFile(new URL('../src/stores/files.js', import.meta.url), 'utf8')
+  const storeSource = await readFile(new URL('../src/stores/files.ts', import.meta.url), 'utf8')
   assert.match(
     storeSource,
     /isBinaryPath:\s*\(path\)\s*=>\s*isBinaryFile\(path\)/,

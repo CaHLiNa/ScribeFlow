@@ -12,7 +12,7 @@ import {
   resolveNewMenuStyle,
   resolveWorkspaceMenuPosition,
   resolveWorkspaceMenuStyle,
-} from '../src/domains/files/fileTreePresentation.js'
+} from '../src/domains/files/fileTreePresentation.ts'
 
 assert.equal(
   resolveFileTreeWorkspaceName({ translate: (key) => `t:${key}` }),
@@ -165,11 +165,11 @@ assert.deepEqual(resetFileTreeRenameState(), {
 })
 
 const fileTreeSource = await readFile('src/components/sidebar/FileTree.vue', 'utf8')
-const fileTreeActionsSource = await readFile('src/composables/files/useFileTreeActions.js', 'utf8')
+const fileTreeActionsSource = await readFile('src/composables/files/useFileTreeActions.ts', 'utf8')
 
 assert.match(
   fileTreeSource,
-  /from '..\/..\/domains\/files\/fileTreePresentation\.js'/,
+  /from '..\/..\/domains\/files\/fileTreePresentation\.ts'/,
   'FileTree.vue must import deterministic presentation rules from the file domain',
 )
 assert.match(

@@ -239,7 +239,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.js')
+  const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.ts')
 
   const pinia = createPinia()
   setActivePinia(pinia)

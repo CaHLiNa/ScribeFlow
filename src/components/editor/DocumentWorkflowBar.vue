@@ -82,7 +82,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { IconEye, IconFileTypePdf, IconPlayerPlay } from '@tabler/icons-vue'
 import UiButton from '../shared/ui/UiButton.vue'

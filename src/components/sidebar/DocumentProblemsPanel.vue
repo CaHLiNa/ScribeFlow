@@ -51,7 +51,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onUnmounted, watch } from 'vue'
 import {
   IconAlertTriangle,
@@ -62,8 +62,8 @@ import {
 import { useI18n } from '../../i18n'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
-import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.js'
-import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
+import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.ts'
+import { revealLatexSourceLocation } from '../../services/latex/previewSync.ts'
 
 const props = defineProps({
   filePath: { type: String, required: true },

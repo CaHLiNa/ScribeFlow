@@ -14,7 +14,7 @@ import {
   resolveReferenceDetailCollection,
   resolveReferenceDetailCollectionLabel,
   resolveReferenceDetailPdfPath,
-} from '../src/domains/references/referenceDetailDraft.js'
+} from '../src/domains/references/referenceDetailDraft.ts'
 
 assert.deepEqual(REFERENCE_DETAIL_EDITABLE_FIELDS, [
   'title',
@@ -180,7 +180,7 @@ const panelSource = await readFile('src/components/panel/ReferenceDetailPanel.vu
 
 assert.match(
   panelSource,
-  /from '..\/..\/domains\/references\/referenceDetailDraft\.js'/,
+  /from '..\/..\/domains\/references\/referenceDetailDraft\.ts'/,
   'ReferenceDetailPanel must import draft rules from the reference detail domain',
 )
 assert.match(

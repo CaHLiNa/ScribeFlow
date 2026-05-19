@@ -70,7 +70,7 @@ try {
     listExtensions,
     loadExtensionSettings,
     saveExtensionSettings,
-  } = await vite.ssrLoadModule('/src/services/extensions/extensionRegistry.js')
+  } = await vite.ssrLoadModule('/src/services/extensions/extensionRegistry.ts')
 
   const listed = await listExtensions(42, null)
   await loadExtensionSettings(42, false, { hydrateSecrets: 'true' })

@@ -83,7 +83,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { loadWorkspaceBootstrapData } = await vite.ssrLoadModule('/src/services/workspaceRecents.js')
+  const { loadWorkspaceBootstrapData } = await vite.ssrLoadModule('/src/services/workspaceRecents.ts')
 
   const rawParams = {
     globalConfigDir: 42,

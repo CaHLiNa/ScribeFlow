@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildExtensionActionSurfaceState } from '../src/domains/extensions/extensionActionSurfaceState.js'
+import { buildExtensionActionSurfaceState } from '../src/domains/extensions/extensionActionSurfaceState.ts'
 
 const hostDiagnostics = {
   ownsPendingPrompt: false,

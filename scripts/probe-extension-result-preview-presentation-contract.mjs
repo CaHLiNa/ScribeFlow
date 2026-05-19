@@ -4,7 +4,7 @@ import {
   buildExtensionResultPreviewPresentation,
   inferExtensionResultPreviewMode,
   labelKeyForResultAction,
-} from '../src/domains/extensions/extensionResultPreviewPresentation.js'
+} from '../src/domains/extensions/extensionResultPreviewPresentation.ts'
 
 assert.equal(
   inferExtensionResultPreviewMode({

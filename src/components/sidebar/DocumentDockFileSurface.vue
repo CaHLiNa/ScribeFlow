@@ -45,12 +45,12 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, defineAsyncComponent, toRef } from 'vue'
-import { useEditorStore } from '../../stores/editor.js'
+import { useEditorStore } from '../../stores/editor.ts'
 import { useI18n } from '../../i18n'
-import { useViewerType, useBasename } from '../../composables/useFileMetadata.js'
-import { openLocalPath } from '../../services/localFileOpen.js'
+import { useViewerType, useBasename } from '../../composables/useFileMetadata.ts'
+import { openLocalPath } from '../../services/localFileOpen.ts'
 
 const EditorTextWorkspaceSurface = defineAsyncComponent(
   () => import('../editor/EditorTextWorkspaceSurface.vue')

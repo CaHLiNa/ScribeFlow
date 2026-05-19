@@ -19,7 +19,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 
 defineOptions({

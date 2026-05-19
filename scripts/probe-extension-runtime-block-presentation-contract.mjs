@@ -3,7 +3,7 @@ import {
   buildExtensionRuntimeBlockPresentation,
   describeExtensionRuntimeBlockPresentation,
   describeExtensionHostStatePresentation,
-} from '../src/domains/extensions/extensionRuntimeBlockPresentation.js'
+} from '../src/domains/extensions/extensionRuntimeBlockPresentation.ts'
 
 function t(key, params = {}) {
   const suffix = Object.keys(params).length ? ` ${JSON.stringify(params)}` : ''

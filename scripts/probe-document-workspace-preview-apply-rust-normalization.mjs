@@ -55,7 +55,7 @@ try {
   })
 
   const { applyDocumentWorkspacePreviewState } = await vite.ssrLoadModule(
-    '/src/services/documentWorkflow/workspacePreviewBridge.js',
+    '/src/services/documentWorkflow/workspacePreviewBridge.ts',
   )
 
   const rawParams = {

@@ -136,7 +136,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
@@ -145,7 +145,7 @@ import {
   FALLBACK_SYSTEM_FONT_FAMILIES,
   WORKSPACE_FONT_PRESETS,
   decodeWorkspaceSystemFontFamily,
-} from '../../domains/settings/workspacePreferencePresentation.js'
+} from '../../domains/settings/workspacePreferencePresentation.ts'
 import { loadWorkspaceSystemFontFamilies } from '../../services/workspacePreferences'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiSwitch from '../shared/ui/UiSwitch.vue'

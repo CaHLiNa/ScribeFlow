@@ -8,7 +8,7 @@
   </span>
 </template>
 
-<script setup>
+<script setup lang="ts">
 const props = defineProps({
   label: { type: String, default: '' },
   title: { type: String, default: '' },

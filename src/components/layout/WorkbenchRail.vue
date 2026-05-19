@@ -65,7 +65,7 @@
   </nav>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   IconLayoutSidebar,
@@ -81,13 +81,13 @@ import {
   isNativeWindowFullscreen,
   onNativeWindowResized,
   startNativeWindowDrag,
-} from '../../services/nativeWindow.js'
-import { syncMacosWindowTransparency } from '../../services/macosWindowTransparency.js'
+} from '../../services/nativeWindow.ts'
+import { syncMacosWindowTransparency } from '../../services/macosWindowTransparency.ts'
 import {
   buildWorkbenchRailModeItems,
   buildWorkbenchRailTitleState,
   resolveWorkbenchRailStyle,
-} from '../../domains/workbench/workbenchRailPresentation.js'
+} from '../../domains/workbench/workbenchRailPresentation.ts'
 
 const props = defineProps({
   tabsTargetId: { type: String, default: 'app-shell-topbar-tabs' },

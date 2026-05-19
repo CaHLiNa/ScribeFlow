@@ -46,7 +46,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { computeMinimalChange } = await vite.ssrLoadModule('/src/services/textDiff.js')
+  const { computeMinimalChange } = await vite.ssrLoadModule('/src/services/textDiff.ts')
 
   await computeMinimalChange(42, false)
   await computeMinimalChange(' alpha ', ' alpha beta ')

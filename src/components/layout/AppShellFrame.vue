@@ -89,7 +89,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import ResizeHandle from './ResizeHandle.vue'
 import WorkbenchRail from './WorkbenchRail.vue'
 

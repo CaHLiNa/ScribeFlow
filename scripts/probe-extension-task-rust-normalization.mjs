@@ -71,7 +71,7 @@ try {
     cancelExtensionTasksForExtension,
     getExtensionTask,
     listExtensionTasks,
-  } = await vite.ssrLoadModule('/src/services/extensions/extensionTasks.js')
+  } = await vite.ssrLoadModule('/src/services/extensions/extensionTasks.ts')
 
   const listed = await listExtensionTasks(' /tmp/workspace-a ')
   const task = await getExtensionTask(42)

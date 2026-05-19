@@ -72,8 +72,8 @@ try {
   const {
     resolveLatexCompileRequest,
     resolveLatexCompileTargets,
-  } = await vite.ssrLoadModule('/src/services/latex/runtime.js')
-  const { resolveLatexProjectGraph } = await vite.ssrLoadModule('/src/services/latex/projectGraph.js')
+  } = await vite.ssrLoadModule('/src/services/latex/runtime.ts')
+  const { resolveLatexProjectGraph } = await vite.ssrLoadModule('/src/services/latex/projectGraph.ts')
 
   await resolveLatexCompileRequest({
     sourcePath: 42,

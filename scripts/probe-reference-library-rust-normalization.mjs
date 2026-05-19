@@ -84,7 +84,7 @@ try {
     normalizeReferenceLibrarySnapshotWithBackend,
     readOrCreateReferenceLibrarySnapshot,
     writeReferenceLibrarySnapshot,
-  } = await vite.ssrLoadModule('/src/services/references/referenceLibraryIO.js')
+  } = await vite.ssrLoadModule('/src/services/references/referenceLibraryIO.ts')
 
   const normalized = await normalizeReferenceLibrarySnapshotWithBackend(false)
   const payload = await buildReferenceLibrarySnapshotPayloadWithBackend({ citationStyle: 'ieee' })

@@ -67,7 +67,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, onUnmounted, ref, watch } from 'vue'
 
 import { EmbedPDF } from '@embedpdf/core/vue'
@@ -75,30 +75,30 @@ import { WebWorkerEngine } from '@embedpdf/engines'
 import pdfiumWasmUrl from '@embedpdf/pdfium/pdfium.wasm?url'
 import { DocumentContent } from '@embedpdf/plugin-document-manager/vue'
 
-import { basenamePath } from '../../services/pathUtils.js'
+import { basenamePath } from '../../services/pathUtils.ts'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import {
   requestLatexPdfForwardSync,
   requestLatexPdfBackwardSync,
   readPdfArtifactBase64,
-} from '../../services/pdf/artifactPreview.js'
+} from '../../services/pdf/artifactPreview.ts'
 import {
   LATEX_FORWARD_SYNC_EVENT,
   readPendingLatexForwardSync,
-} from '../../services/latex/pdfPreviewSync.js'
+} from '../../services/latex/pdfPreviewSync.ts'
 import {
   buildEmbedPdfPluginRegistrations,
   decodePdfBase64ToArrayBufferAsync,
-} from '../../services/pdf/embedPdfAdapter.js'
+} from '../../services/pdf/embedPdfAdapter.ts'
 import {
   createPdfPreviewSessionState,
   resolvePdfPreviewSessionTransition,
   snapshotPdfPreviewViewState,
-} from '../../domains/document/pdfPreviewSessionRuntime.js'
-import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.js'
-import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.js'
-import { resolveExistingLatexSynctexPath } from '../../services/latex/synctex.js'
+} from '../../domains/document/pdfPreviewSessionRuntime.ts'
+import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.ts'
+import { resolveLatexSyncTargetPath } from '../../services/latex/previewSync.ts'
+import { resolveExistingLatexSynctexPath } from '../../services/latex/synctex.ts'
 import PdfEmbedDocumentSurface from './PdfEmbedDocumentSurface.vue'
 
 const sharedPdfEngine = ref(null)
@@ -128,7 +128,7 @@ async function ensureSharedPdfEngine(wasmUrl = '') {
   sharedPdfEnginePromise = Promise.resolve()
     .then(() => {
       if (!sharedPdfWorker) {
-        sharedPdfWorker = new Worker(new URL('./PdfPreviewEngine.worker.js', import.meta.url), {
+        sharedPdfWorker = new Worker(new URL('./PdfPreviewEngine.worker.ts', import.meta.url), {
           type: 'module',
         })
       }

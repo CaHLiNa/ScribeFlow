@@ -24,7 +24,7 @@ try {
     resolvePaneDockContextPath,
     resolvePaneDocumentDockOpen,
     resolvePaneDocumentTab,
-  } = await vite.ssrLoadModule('/src/domains/editor/paneDocumentDockRuntime.js')
+  } = await vite.ssrLoadModule('/src/domains/editor/paneDocumentDockRuntime.ts')
 
   assert.equal(isWorkspaceDocumentPath('/tmp/workspace/paper.md', '/tmp/workspace'), true)
   assert.equal(isWorkspaceDocumentPath('/tmp/workspace-other/paper.md', '/tmp/workspace'), false)

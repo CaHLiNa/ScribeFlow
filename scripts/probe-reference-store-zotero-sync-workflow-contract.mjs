@@ -1,9 +1,9 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-const storeSource = await readFile('src/stores/references.js', 'utf8')
-const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
-const serviceSource = await readFile('src/services/references/zoteroSync.js', 'utf8')
+const storeSource = await readFile('src/stores/references.ts', 'utf8')
+const domainSource = await readFile('src/domains/references/referenceStoreState.ts', 'utf8')
+const serviceSource = await readFile('src/services/references/zoteroSync.ts', 'utf8')
 const rustSource = await readFile('src-tauri/src/references_zotero.rs', 'utf8')
 
 function extractActionSource(source, actionName) {

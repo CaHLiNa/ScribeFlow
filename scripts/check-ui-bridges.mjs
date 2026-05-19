@@ -15,7 +15,7 @@ function walk(dir) {
 }
 
 const violations = walk(srcRoot)
-  .filter((path) => path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.vue'))
+  .filter((path) => path.endsWith('.ts') || path.endsWith('.vue'))
   .filter((path) => {
     const rel = relative(repoRoot, path)
     if (rel === allowedNativeBridgeFile) return false

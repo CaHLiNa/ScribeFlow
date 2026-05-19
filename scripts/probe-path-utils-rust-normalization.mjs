@@ -58,8 +58,8 @@ try {
     relativePathBetween,
     resolveRelativePath,
     stripExtension,
-  } = await vite.ssrLoadModule('/src/services/pathUtils.js')
-  const { relativePath } = await vite.ssrLoadModule('/src/services/fileTypes.js')
+  } = await vite.ssrLoadModule('/src/services/pathUtils.ts')
+  const { relativePath } = await vite.ssrLoadModule('/src/services/fileTypes.ts')
 
   await normalizeFsPath(42)
   await basenamePath(' /tmp/workspace/note.md ')

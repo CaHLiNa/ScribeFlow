@@ -47,7 +47,7 @@ try {
   })
 
   const { resolveDocumentOutlineItems } = await vite.ssrLoadModule(
-    '/src/services/documentOutline/runtime.js',
+    '/src/services/documentOutline/runtime.ts',
   )
 
   await resolveDocumentOutlineItems(' /tmp/workspace/main.md ', {

@@ -48,7 +48,7 @@ try {
   })
 
   const { refreshReferenceMetadata } = await vite.ssrLoadModule(
-    '/src/services/references/crossref.js',
+    '/src/services/references/crossref.ts',
   )
 
   const result = await refreshReferenceMetadata(false)

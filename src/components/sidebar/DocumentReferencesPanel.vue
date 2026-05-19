@@ -162,7 +162,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import {
   IconAlertTriangle,
@@ -175,8 +175,8 @@ import { useI18n } from '../../i18n'
 import { useFilesStore } from '../../stores/files'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { resolveLatexReferenceContext } from '../../services/latex/root.js'
-import { buildDocumentCitationCoverage } from '../../domains/references/documentCitationCoverage.js'
+import { resolveLatexReferenceContext } from '../../services/latex/root.ts'
+import { buildDocumentCitationCoverage } from '../../domains/references/documentCitationCoverage.ts'
 
 const props = defineProps({
   filePath: { type: String, required: true },

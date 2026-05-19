@@ -55,8 +55,8 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   }, { shouldMockEvents: true })
 
-  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.ts')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
 
   const pinia = createPinia()
   setActivePinia(pinia)
@@ -148,7 +148,7 @@ try {
   assert.deepEqual(timeline.recent.map((task) => task.id), ['task-failed'])
 
   const resultEntries = extensions
-    ? (await vite.ssrLoadModule('/src/domains/extensions/extensionResultEntries.js'))
+    ? (await vite.ssrLoadModule('/src/domains/extensions/extensionResultEntries.ts'))
         .buildExtensionTaskResultEntries(failedTask)
     : []
 

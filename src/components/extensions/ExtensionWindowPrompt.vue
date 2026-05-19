@@ -91,7 +91,7 @@
   </UiModalShell>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import {
@@ -99,7 +99,7 @@ import {
   resolveQuickPickSubmission,
   seedQuickPickSelection,
   toggleQuickPickSelection,
-} from '../../domains/extensions/extensionWindowPromptState.js'
+} from '../../domains/extensions/extensionWindowPromptState.ts'
 import UiInput from '../shared/ui/UiInput.vue'
 import UiModalShell from '../shared/ui/UiModalShell.vue'
 

@@ -77,7 +77,7 @@ try {
     getViewerType,
     isPdf,
     relativePath,
-  } = await vite.ssrLoadModule('/src/services/fileTypes.js')
+  } = await vite.ssrLoadModule('/src/services/fileTypes.ts')
 
   await classify(42)
   await getViewerType(' /tmp/workspace/Paper.PDF ')

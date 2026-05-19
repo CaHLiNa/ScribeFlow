@@ -5,8 +5,8 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const srcRoot = join(repoRoot, 'src')
 
-const sourceExtensions = ['.js', '.vue']
-const latexRuntimePath = 'src/editor/latexLanguage.js'
+const sourceExtensions = ['.ts', '.vue']
+const latexRuntimePath = 'src/editor/latexLanguage.ts'
 const textmateRuntimeMarkers = [
   'vscode-textmate',
   'vscode-oniguruma',
@@ -31,9 +31,9 @@ function isSourceFile(path) {
 }
 
 function hasStaticLatexLanguageImport(source) {
-  return /^\s*import\s+.+['"].*\/editor\/latexLanguage(?:\.js)?['"]/m.test(source)
-    || /^\s*import\s+.+['"]\.\.\/\.\.\/editor\/latexLanguage(?:\.js)?['"]/m.test(source)
-    || /^\s*import\s+.+['"]\.\/latexLanguage(?:\.js)?['"]/m.test(source)
+  return /^\s*import\s+.+['"].*\/editor\/latexLanguage(?:\.(?:js|ts))?['"]/m.test(source)
+    || /^\s*import\s+.+['"]\.\.\/\.\.\/editor\/latexLanguage(?:\.(?:js|ts))?['"]/m.test(source)
+    || /^\s*import\s+.+['"]\.\/latexLanguage(?:\.(?:js|ts))?['"]/m.test(source)
 }
 
 const violations = []

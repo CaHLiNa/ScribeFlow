@@ -75,7 +75,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { resolveWorkspaceBootstrapPlan } = await vite.ssrLoadModule('/src/services/workspaceRecents.js')
+  const { resolveWorkspaceBootstrapPlan } = await vite.ssrLoadModule('/src/services/workspaceRecents.ts')
 
   const rawOptions = {
     hasCachedTree: 'yes',

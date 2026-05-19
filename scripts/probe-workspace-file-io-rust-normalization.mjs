@@ -58,11 +58,11 @@ try {
   const {
     readWorkspaceTextFile,
     writeTextFile,
-  } = await vite.ssrLoadModule('/src/services/fileStoreIO.js')
+  } = await vite.ssrLoadModule('/src/services/fileStoreIO.ts')
   const {
     readPdfArtifactBase64,
     writePdfArtifactBase64,
-  } = await vite.ssrLoadModule('/src/services/pdf/artifactPreview.js')
+  } = await vite.ssrLoadModule('/src/services/pdf/artifactPreview.ts')
 
   await readWorkspaceTextFile(' /tmp/workspace/note.md ', '64')
   await readWorkspaceTextFile(' /tmp/workspace/default.md ')

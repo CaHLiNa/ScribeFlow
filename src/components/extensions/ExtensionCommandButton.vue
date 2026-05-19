@@ -15,7 +15,7 @@
   </ExtensionBlockedActionButton>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref } from 'vue'
 import { IconBolt } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'

@@ -55,7 +55,7 @@ try {
   })
 
   const { applyReferenceMutation } = await vite.ssrLoadModule(
-    '/src/services/references/referenceRuntime.js',
+    '/src/services/references/referenceRuntime.ts',
   )
 
   await applyReferenceMutation({

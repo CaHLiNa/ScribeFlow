@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-const storeSource = await readFile('src/stores/references.js', 'utf8')
-const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
+const storeSource = await readFile('src/stores/references.ts', 'utf8')
+const domainSource = await readFile('src/domains/references/referenceStoreState.ts', 'utf8')
 const mutationSource = await readFile('src-tauri/src/references_mutation.rs', 'utf8')
 const backendSource = await readFile('src-tauri/src/references_backend.rs', 'utf8')
 

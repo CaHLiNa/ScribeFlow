@@ -8,7 +8,7 @@ import {
   normalizeSettingsSectionId,
   resolveSettingsSectionId,
   resolveSettingsSectionMeta,
-} from '../src/domains/settings/settingsSections.js'
+} from '../src/domains/settings/settingsSections.ts'
 
 assert.deepEqual(
   SETTINGS_SECTION_DEFINITIONS.map((item) => item.id),
@@ -59,11 +59,11 @@ assert.deepEqual(
 
 const settingsSource = await readFile('src/components/settings/Settings.vue', 'utf8')
 const settingsSidebarSource = await readFile('src/components/settings/SettingsSidebar.vue', 'utf8')
-const workspaceStoreSource = await readFile('src/stores/workspace.js', 'utf8')
+const workspaceStoreSource = await readFile('src/stores/workspace.ts', 'utf8')
 
 assert.match(
   settingsSource,
-  /from '..\/..\/domains\/settings\/settingsSections\.js'/,
+  /from '..\/..\/domains\/settings\/settingsSections\.ts'/,
   'Settings.vue must import section policy from the settings domain',
 )
 assert.match(
@@ -79,7 +79,7 @@ assert.doesNotMatch(
 
 assert.match(
   settingsSidebarSource,
-  /from '..\/..\/domains\/settings\/settingsSections\.js'/,
+  /from '..\/..\/domains\/settings\/settingsSections\.ts'/,
   'SettingsSidebar.vue must import section policy from the settings domain',
 )
 assert.match(
@@ -89,7 +89,7 @@ assert.match(
 )
 assert.doesNotMatch(
   settingsSidebarSource,
-  /from '\.\/settingsSections\.js'/,
+  /from '\.\/settingsSections\.ts'/,
   'SettingsSidebar.vue must not import component-local section definitions',
 )
 
@@ -122,7 +122,7 @@ const vite = await createServer({
 })
 
 try {
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
   const workspace = useWorkspaceStore(createPinia())
 
   workspace.openSettings('environment')

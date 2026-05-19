@@ -4,7 +4,7 @@ import {
   buildExtensionTaskResultEntries,
   buildDefaultResultEntries,
   mergeDefaultResultEntries,
-} from '../src/domains/extensions/extensionResultEntries.js'
+} from '../src/domains/extensions/extensionResultEntries.ts'
 
 async function main() {
   const entries = buildExtensionArtifactPreviewEntries([

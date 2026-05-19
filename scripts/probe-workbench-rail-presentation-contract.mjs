@@ -5,7 +5,7 @@ import {
   buildWorkbenchRailTitleState,
   resolveWorkbenchRailLeftPadding,
   resolveWorkbenchRailStyle,
-} from '../src/domains/workbench/workbenchRailPresentation.js'
+} from '../src/domains/workbench/workbenchRailPresentation.ts'
 
 assert.equal(
   resolveWorkbenchRailLeftPadding({
@@ -116,7 +116,7 @@ const componentSource = await readFile('src/components/layout/WorkbenchRail.vue'
 const titleAreaSource = await readFile('src/components/layout/WorkbenchRailTitleArea.vue', 'utf8')
 assert.match(
   componentSource,
-  /from '..\/..\/domains\/workbench\/workbenchRailPresentation\.js'/,
+  /from '..\/..\/domains\/workbench\/workbenchRailPresentation\.ts'/,
   'WorkbenchRail must use the pure rail presentation helper',
 )
 assert.match(

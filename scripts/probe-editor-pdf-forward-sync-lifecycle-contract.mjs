@@ -45,7 +45,7 @@ try {
   const {
     createPdfForwardSyncLifecycle,
     waitForPdfForwardSyncFrames,
-  } = await vite.ssrLoadModule('/src/editor/pdfForwardSyncTiming.js')
+  } = await vite.ssrLoadModule('/src/editor/pdfForwardSyncTiming.ts')
 
   const firstScheduler = createManualFrameScheduler()
   const firstLifecycle = createPdfForwardSyncLifecycle({ scheduler: firstScheduler })

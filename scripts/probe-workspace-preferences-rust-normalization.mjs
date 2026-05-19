@@ -129,7 +129,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
   const workspace = useWorkspaceStore(createPinia())
   workspace.globalConfigDir = '/tmp/scribeflow-global-config'
   workspace.ensureGlobalConfigDir = async () => '/tmp/scribeflow-global-config'
@@ -138,7 +138,7 @@ try {
     loadWorkspaceSystemFontFamilies,
     loadWorkspacePreferences,
     saveWorkspacePreferences,
-  } = await vite.ssrLoadModule('/src/services/workspacePreferences.js')
+  } = await vite.ssrLoadModule('/src/services/workspacePreferences.ts')
 
   await loadWorkspacePreferences(42)
   await saveWorkspacePreferences(42, { editorFontSize: 16 })

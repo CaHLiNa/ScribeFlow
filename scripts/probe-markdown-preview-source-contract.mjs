@@ -21,7 +21,7 @@ const vite = await createServer({
 
 try {
   const { resolveMarkdownPreviewInput, resolveWorkspacePreviewSourcePath } =
-    await vite.ssrLoadModule('/src/domains/document/documentWorkspacePreviewAdapters.js')
+    await vite.ssrLoadModule('/src/domains/document/documentWorkspacePreviewAdapters.ts')
 
   const directPreview = resolveMarkdownPreviewInput('preview:/tmp/scribeflow-preview/note.md')
   assert.equal(typeof directPreview?.then, 'undefined')

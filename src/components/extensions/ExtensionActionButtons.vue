@@ -12,7 +12,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
 import { buildSurfaceContext } from '../../domains/extensions/extensionContributionRegistry'

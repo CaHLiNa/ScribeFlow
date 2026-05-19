@@ -20,9 +20,9 @@ const vite = await createServer({
 })
 
 try {
-  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.js')
-  const { deriveRestoredEditorRuntimeState } = await vite.ssrLoadModule('/src/domains/editor/editorRestoreRuntime.js')
-  const { ROOT_PANE_ID } = await vite.ssrLoadModule('/src/domains/editor/paneTreeLayout.js')
+  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.ts')
+  const { deriveRestoredEditorRuntimeState } = await vite.ssrLoadModule('/src/domains/editor/editorRestoreRuntime.ts')
+  const { ROOT_PANE_ID } = await vite.ssrLoadModule('/src/domains/editor/paneTreeLayout.ts')
 
   const isContextCandidatePath = (path = '') =>
     Boolean(path && !String(path).startsWith('newtab:') && !String(path).startsWith('preview:'))

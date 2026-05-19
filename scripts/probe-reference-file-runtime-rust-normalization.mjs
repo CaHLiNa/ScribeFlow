@@ -65,7 +65,7 @@ try {
   })
 
   const { scanWorkspaceCitationStyles, writeReferenceBibFile } = await vite.ssrLoadModule(
-    '/src/services/references/referenceRuntime.js',
+    '/src/services/references/referenceRuntime.ts',
   )
 
   const scanResult = await scanWorkspaceCitationStyles(42)

@@ -5,7 +5,7 @@ import {
   extensionSettingDraftValue,
   hasPersistedSecureExtensionSetting,
   parseExtensionSettingDraftKey,
-} from '../src/domains/extensions/extensionSettingDrafts.js'
+} from '../src/domains/extensions/extensionSettingDrafts.ts'
 
 const extension = {
   id: 'Example-PDF-Extension',

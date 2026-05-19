@@ -139,7 +139,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, defineComponent, nextTick, onMounted, onUnmounted, ref, watch, watchEffect } from 'vue'
 
 import { useDocumentState } from '@embedpdf/core/vue'
@@ -156,26 +156,26 @@ import { Viewport, useViewportCapability } from '@embedpdf/plugin-viewport/vue'
 import { ZoomMode, useZoom } from '@embedpdf/plugin-zoom/vue'
 
 import { useI18n } from '../../i18n'
-import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
-import { encodePdfArrayBufferToBase64 } from '../../services/pdf/embedPdfAdapter.js'
-import { writePdfArtifactBase64 } from '../../services/pdf/artifactPreview.js'
-import { writeNativeClipboardText } from '../../services/nativeClipboard.js'
+import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.ts'
+import { encodePdfArrayBufferToBase64 } from '../../services/pdf/embedPdfAdapter.ts'
+import { writePdfArtifactBase64 } from '../../services/pdf/artifactPreview.ts'
+import { writeNativeClipboardText } from '../../services/nativeClipboard.ts'
 import {
   normalizeWorkspacePdfViewerLastScale,
   normalizeWorkspacePdfViewerSpreadMode,
   normalizeWorkspacePdfViewerZoomMode,
-} from '../../domains/settings/workspacePreferencePresentation.js'
+} from '../../domains/settings/workspacePreferencePresentation.ts'
 import {
   createPdfForwardSyncLifecycle,
   waitForPdfForwardSyncFrames,
-} from '../../editor/pdfForwardSyncTiming.js'
+} from '../../editor/pdfForwardSyncTiming.ts'
 import {
   createPdfRestoreLifecycle,
   waitForPdfRestoreFrames,
-} from '../../editor/pdfRestoreTiming.js'
-import { useToastStore } from '../../stores/toast.js'
-import { useWorkspaceStore } from '../../stores/workspace.js'
-import { basenamePath } from '../../utils/path.js'
+} from '../../editor/pdfRestoreTiming.ts'
+import { useToastStore } from '../../stores/toast.ts'
+import { useWorkspaceStore } from '../../stores/workspace.ts'
+import { basenamePath } from '../../utils/path.ts'
 import PdfEmbedToolbar from './PdfEmbedToolbar.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 

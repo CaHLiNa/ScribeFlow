@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildExtensionHostStatusSurface } from '../src/domains/extensions/extensionHostStatusSurface.js'
+import { buildExtensionHostStatusSurface } from '../src/domains/extensions/extensionHostStatusSurface.ts'
 
 const idle = buildExtensionHostStatusSurface({}, { hostRuntimeSlots: [] })
 assert.equal(idle.badgeKey, 'Idle')

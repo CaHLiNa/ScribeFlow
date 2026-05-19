@@ -79,7 +79,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, onMounted, onBeforeUnmount, nextTick } from 'vue'
 import {
   IconFileText, IconMath, IconFilePlus, IconFolderPlus,

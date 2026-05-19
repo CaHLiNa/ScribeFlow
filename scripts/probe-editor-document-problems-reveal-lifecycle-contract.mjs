@@ -10,7 +10,7 @@ assert.match(
 )
 assert.match(
   componentSource,
-  /import \{ createLatexRevealLifecycle \} from '..\/..\/editor\/latexRevealTiming\.js'/,
+  /import \{ createLatexRevealLifecycle \} from '..\/..\/editor\/latexRevealTiming\.ts'/,
   'DocumentProblemsPanel must use the LaTeX reveal lifecycle controller'
 )
 assert.match(

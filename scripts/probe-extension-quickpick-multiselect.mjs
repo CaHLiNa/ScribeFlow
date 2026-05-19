@@ -21,7 +21,7 @@ const vite = await createServer({
 })
 
 try {
-  const state = await vite.ssrLoadModule('/src/domains/extensions/extensionWindowPromptState.js')
+  const state = await vite.ssrLoadModule('/src/domains/extensions/extensionWindowPromptState.ts')
   const {
     seedQuickPickSelection,
     toggleQuickPickSelection,

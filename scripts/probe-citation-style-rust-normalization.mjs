@@ -56,7 +56,7 @@ try {
     getAvailableCitationStyles,
     getCitationStyleInfo,
     normalizeCitationStyle,
-  } = await vite.ssrLoadModule('/src/services/references/citationStyleRuntime.js')
+  } = await vite.ssrLoadModule('/src/services/references/citationStyleRuntime.ts')
 
   await getAvailableCitationStyles()
   await getCitationStyleInfo(42)

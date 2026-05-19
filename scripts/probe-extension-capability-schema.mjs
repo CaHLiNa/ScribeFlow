@@ -1,8 +1,8 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 import path from 'node:path'
-import { normalizeExtensionContributions } from '../src/domains/extensions/extensionContributionRegistry.js'
-import { inspectExtensionCapability } from '../src/domains/extensions/extensionCapabilitySchema.js'
+import { normalizeExtensionContributions } from '../src/domains/extensions/extensionContributionRegistry.ts'
+import { inspectExtensionCapability } from '../src/domains/extensions/extensionCapabilitySchema.ts'
 
 const repoRoot = process.cwd()
 

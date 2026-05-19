@@ -64,7 +64,7 @@ try {
     resolveClaudeConfigDir,
     resolveSkillPath,
     resolveWorkspaceDataDir,
-  } = await vite.ssrLoadModule('/src/services/workspacePaths.js')
+  } = await vite.ssrLoadModule('/src/services/workspacePaths.ts')
 
   await hashWorkspacePath(42)
   await resolveWorkspaceDataDir(false, ' workspace-id ')

@@ -92,16 +92,16 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, watch } from 'vue'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useExtensionHostStatusPresentation } from '../../composables/useExtensionHostStatusPresentation'
-import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
+import { buildExtensionContext } from '../../domains/extensions/extensionContext.ts'
 import { buildExtensionHostStatusSurface } from '../../domains/extensions/extensionHostStatusSurface'
-import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.js'
-import { buildExtensionTargetSummary } from '../../domains/extensions/extensionTargetPresentation.js'
+import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.ts'
+import { buildExtensionTargetSummary } from '../../domains/extensions/extensionTargetPresentation.ts'
 import ExtensionCountBadge from '../extensions/ExtensionCountBadge.vue'
 import ExtensionDocumentActionPanel from '../extensions/ExtensionDocumentActionPanel.vue'
 import ExtensionHostStatusSurface from '../extensions/ExtensionHostStatusSurface.vue'

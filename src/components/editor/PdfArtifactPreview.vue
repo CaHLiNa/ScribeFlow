@@ -30,14 +30,14 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
 
-import { useLatexStore } from '../../stores/latex.js'
-import { useDocumentWorkflowStore } from '../../stores/documentWorkflow.js'
-import { useWorkspaceStore } from '../../stores/workspace.js'
-import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.js'
-import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.js'
+import { useLatexStore } from '../../stores/latex.ts'
+import { useDocumentWorkflowStore } from '../../stores/documentWorkflow.ts'
+import { useWorkspaceStore } from '../../stores/workspace.ts'
+import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.ts'
+import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.ts'
 import PdfEmbedSurface from './PdfEmbedSurface.vue'
 import ExtensionActionButtons from '../extensions/ExtensionActionButtons.vue'
 

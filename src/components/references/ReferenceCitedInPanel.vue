@@ -42,16 +42,16 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onUnmounted, ref, watch } from 'vue'
-import { basenamePath } from '../../services/pathUtils.js'
+import { basenamePath } from '../../services/pathUtils.ts'
 import { IconFileText, IconQuote } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { useEditorStore } from '../../stores/editor'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { focusEditorLineWithHighlight } from '../../editor/revealHighlight'
-import { createEditorFocusRetryLifecycle } from '../../editor/editorFocusRetryTiming.js'
+import { createEditorFocusRetryLifecycle } from '../../editor/editorFocusRetryTiming.ts'
 
 const props = defineProps({
   reference: { type: Object, default: null },

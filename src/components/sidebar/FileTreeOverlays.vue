@@ -46,7 +46,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import ContextMenu from './ContextMenu.vue'
 import FileTreeNewMenu from './FileTreeNewMenu.vue'

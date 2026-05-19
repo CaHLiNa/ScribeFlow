@@ -61,13 +61,13 @@ try {
   })
 
   const { resolveDocumentWorkflowUiState } = await vite.ssrLoadModule(
-    '/src/services/documentWorkflow/workflowUiStateBridge.js',
+    '/src/services/documentWorkflow/workflowUiStateBridge.ts',
   )
   const { resolveDocumentWorkflowLatexProblems } = await vite.ssrLoadModule(
-    '/src/services/documentWorkflow/latexProblemsBridge.js',
+    '/src/services/documentWorkflow/latexProblemsBridge.ts',
   )
   const { resolveDocumentWorkflowPythonProblems } = await vite.ssrLoadModule(
-    '/src/services/documentWorkflow/pythonProblemsBridge.js',
+    '/src/services/documentWorkflow/pythonProblemsBridge.ts',
   )
 
   const uiParams = {

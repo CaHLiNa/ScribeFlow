@@ -20,11 +20,11 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 
-import { usePythonStore } from '../../stores/python.js'
-import { useBasename } from '../../composables/useFileMetadata.js'
+import { usePythonStore } from '../../stores/python.ts'
+import { useBasename } from '../../composables/useFileMetadata.ts'
 import { useI18n } from '../../i18n'
 
 const props = defineProps({

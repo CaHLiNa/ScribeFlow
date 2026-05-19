@@ -77,7 +77,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, watch, nextTick, onBeforeUnmount } from 'vue'
 import { IconChevronRight } from '@tabler/icons-vue'
 

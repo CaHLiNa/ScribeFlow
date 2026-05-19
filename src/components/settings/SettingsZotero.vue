@@ -149,7 +149,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
@@ -161,7 +161,7 @@ import {
   buildZoteroPushTargetValue,
   buildZoteroSelectedGroupIds,
   buildZoteroSelectedGroups,
-} from '../../domains/references/zoteroSettingsPresentation.js'
+} from '../../domains/references/zoteroSettingsPresentation.ts'
 import UiSwitch from '../shared/ui/UiSwitch.vue'
 import UiSelect from '../shared/ui/UiSelect.vue'
 import UiInput from '../shared/ui/UiInput.vue'

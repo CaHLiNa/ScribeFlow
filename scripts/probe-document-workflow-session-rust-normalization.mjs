@@ -105,7 +105,7 @@ try {
     reconcileDocumentWorkflowLatexPreviewState,
     resolveDocumentWorkflowPreviewCloseEffect,
     saveDocumentWorkflowSessionState,
-  } = await vite.ssrLoadModule('/src/services/documentWorkflow/sessionStateBridge.js')
+  } = await vite.ssrLoadModule('/src/services/documentWorkflow/sessionStateBridge.ts')
 
   const rawWorkspaceDataDir = 42
   const rawState = 'raw-state-for-rust'

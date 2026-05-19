@@ -52,11 +52,11 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
-  const { useFilesStore } = await vite.ssrLoadModule('/src/stores/files.js')
-  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
+  const { useFilesStore } = await vite.ssrLoadModule('/src/stores/files.ts')
+  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.ts')
   const { listWorkspaceFlatFileEntries } = await vite.ssrLoadModule(
-    '/src/domains/files/workspaceSnapshotFlatFilesRuntime.js',
+    '/src/domains/files/workspaceSnapshotFlatFilesRuntime.ts',
   )
 
   const tree = [

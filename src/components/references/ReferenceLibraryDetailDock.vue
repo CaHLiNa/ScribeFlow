@@ -41,7 +41,7 @@
   </InlineDockFrame>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useI18n } from '../../i18n'
 import InlineDockFrame from '../layout/InlineDockFrame.vue'
 import InlineDockTabBar from '../layout/InlineDockTabBar.vue'

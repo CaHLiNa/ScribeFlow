@@ -22,11 +22,11 @@ const vite = await createServer({
 })
 
 try {
-  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
-  const { buildExtensionContext } = await vite.ssrLoadModule('/src/domains/extensions/extensionContext.js')
-  const { buildExtensionPluginContainerPresentation } = await vite.ssrLoadModule('/src/domains/extensions/extensionPluginContainerPresentation.js')
-  const { documentDockPageRegistry } = await vite.ssrLoadModule('/src/components/sidebar/documentDockPageRegistry.js')
+  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.ts')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
+  const { buildExtensionContext } = await vite.ssrLoadModule('/src/domains/extensions/extensionContext.ts')
+  const { buildExtensionPluginContainerPresentation } = await vite.ssrLoadModule('/src/domains/extensions/extensionPluginContainerPresentation.ts')
+  const { documentDockPageRegistry } = await vite.ssrLoadModule('/src/components/sidebar/documentDockPageRegistry.ts')
 
   const pinia = createPinia()
   const workspace = useWorkspaceStore(pinia)

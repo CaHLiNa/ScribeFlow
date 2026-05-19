@@ -54,7 +54,7 @@ try {
     openExternalHttpUrl,
     resolveExternalHttpAnchor,
     resolveExternalHttpUrl,
-  } = await vite.ssrLoadModule('/src/services/externalLinks.js')
+  } = await vite.ssrLoadModule('/src/services/externalLinks.ts')
 
   const anchor = {
     tagName: 'A',

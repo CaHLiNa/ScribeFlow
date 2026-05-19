@@ -38,7 +38,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { IconChevronRight } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import UiTextarea from '../shared/ui/UiTextarea.vue'

@@ -481,7 +481,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, toRef, defineAsyncComponent, onMounted, onUnmounted } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useFilesStore } from '../../stores/files'

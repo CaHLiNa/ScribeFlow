@@ -85,7 +85,7 @@ try {
     cancelRevealHighlight,
     createRevealHighlightExtension,
     focusEditorRangeWithHighlight,
-  } = await vite.ssrLoadModule('/src/editor/revealHighlight.js')
+  } = await vite.ssrLoadModule('/src/editor/revealHighlight.ts')
 
   const cancelScheduler = createManualScheduler()
   const cancelView = createEditorView()

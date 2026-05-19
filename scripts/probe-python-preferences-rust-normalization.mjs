@@ -76,12 +76,12 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
-  const { usePythonStore } = await vite.ssrLoadModule('/src/stores/python.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
+  const { usePythonStore } = await vite.ssrLoadModule('/src/stores/python.ts')
   const {
     loadPythonPreferences,
     savePythonPreferences,
-  } = await vite.ssrLoadModule('/src/services/pythonPreferences.js')
+  } = await vite.ssrLoadModule('/src/services/pythonPreferences.ts')
   const pinia = createPinia()
   const workspace = useWorkspaceStore(pinia)
   const python = usePythonStore(pinia)

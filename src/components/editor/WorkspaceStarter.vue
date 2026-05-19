@@ -12,7 +12,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'

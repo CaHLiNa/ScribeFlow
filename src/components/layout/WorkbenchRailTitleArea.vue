@@ -79,7 +79,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useI18n } from '../../i18n'
 

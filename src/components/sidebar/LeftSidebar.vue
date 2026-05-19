@@ -59,12 +59,12 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, nextTick } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useEditorStore } from '../../stores/editor'
 import { useI18n } from '../../i18n'
-import { resolveActiveWorkspaceDocumentTab } from '../../domains/editor/paneDocumentDockRuntime.js'
+import { resolveActiveWorkspaceDocumentTab } from '../../domains/editor/paneDocumentDockRuntime.ts'
 import FileTree from './FileTree.vue'
 import ReferencesSidebarPanel from './ReferencesSidebarPanel.vue'
 import OutlinePanel from '../panel/OutlinePanel.vue'

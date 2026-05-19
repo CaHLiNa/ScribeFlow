@@ -48,7 +48,7 @@ try {
 
   const {
     respondExtensionWindowUiRequest,
-  } = await vite.ssrLoadModule('/src/services/extensions/extensionWindowUi.js')
+  } = await vite.ssrLoadModule('/src/services/extensions/extensionWindowUi.ts')
 
   await respondExtensionWindowUiRequest({
     requestId: 42,

@@ -4,7 +4,7 @@ const {
   buildDocumentCitationCoverage,
   citationKeysForReference,
   referenceMatchesCitationKey,
-} = await import('../src/domains/references/documentCitationCoverage.js')
+} = await import('../src/domains/references/documentCitationCoverage.ts')
 
 const selectedReferences = [
   { id: 'ref-a', citationKey: 'alpha2024', title: 'Alpha' },

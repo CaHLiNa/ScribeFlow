@@ -94,7 +94,7 @@ try {
     dockPageDefinitionsForSurface,
     dockPageIdsForSurface,
     loadWorkbenchDockPageContract,
-  } = await vite.ssrLoadModule('/src/services/workbenchDockPages.js')
+  } = await vite.ssrLoadModule('/src/services/workbenchDockPages.ts')
 
   assert.deepEqual(createWorkbenchDockPageContract(), {
     document: { defaultPage: '', pages: [] },
@@ -112,7 +112,7 @@ try {
   assert.equal(dockPageDefinitionsForSurface(loaded, 'document')[0].fallbackPage, 'rust-file-fallback')
   assert.equal(dockPageIdsForSurface(loaded, 'document').includes('preview'), false)
 
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
   const pinia = createPinia()
   const workspace = useWorkspaceStore(pinia)
 

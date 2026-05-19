@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { describeExtensionHostStatusSurface } from '../src/domains/extensions/extensionHostStatusPresentation.js'
+import { describeExtensionHostStatusSurface } from '../src/domains/extensions/extensionHostStatusPresentation.ts'
 
 function t(key, params = {}) {
   const suffix = Object.keys(params).length ? ` ${JSON.stringify(params)}` : ''

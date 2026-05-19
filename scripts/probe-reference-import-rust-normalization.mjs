@@ -90,7 +90,7 @@ try {
     parseReferenceImportText,
     parseReferenceImportFile,
     parseRisText,
-  } = await vite.ssrLoadModule('/src/services/references/referenceImport.js')
+  } = await vite.ssrLoadModule('/src/services/references/referenceImport.ts')
 
   const bibtexResult = await parseBibTeXText('raw-bibtex')
   const risResult = await parseRisText('raw-ris')

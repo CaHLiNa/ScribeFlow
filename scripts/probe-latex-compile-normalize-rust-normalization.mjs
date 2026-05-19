@@ -52,7 +52,7 @@ try {
   const {
     normalizeLatexCompileResult,
     normalizeLatexCompileExecution,
-  } = await vite.ssrLoadModule('/src/services/latex/compileNormalize.js')
+  } = await vite.ssrLoadModule('/src/services/latex/compileNormalize.ts')
 
   const result = {
     success: true,

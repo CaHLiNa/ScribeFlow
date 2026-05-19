@@ -22,8 +22,8 @@ const vite = await createServer({
 })
 
 try {
-  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.ts')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
   const pinia = createPinia()
   const workspace = useWorkspaceStore(pinia)
   workspace.path = '/tmp/workspace'

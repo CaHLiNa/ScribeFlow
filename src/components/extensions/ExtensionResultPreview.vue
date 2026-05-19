@@ -68,7 +68,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, defineAsyncComponent, onMounted, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import { readWorkspaceTextFile } from '../../services/fileStoreIO'
@@ -78,7 +78,7 @@ import { useExtensionsStore } from '../../stores/extensions'
 import {
   actionKeyForResultEntry,
   buildExtensionResultPreviewPresentation,
-} from '../../domains/extensions/extensionResultPreviewPresentation.js'
+} from '../../domains/extensions/extensionResultPreviewPresentation.ts'
 import ExtensionBlockedActionButton from './ExtensionBlockedActionButton.vue'
 
 const PdfArtifactPreview = defineAsyncComponent(() => import('../editor/PdfArtifactPreview.vue'))

@@ -66,11 +66,11 @@ try {
 
   const { createSSRApp } = await vite.ssrLoadModule('/node_modules/vue/dist/vue.runtime.esm-bundler.js')
   const { renderToString } = await vite.ssrLoadModule('/node_modules/@vue/server-renderer/dist/server-renderer.esm-browser.js')
-  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
-  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.js')
-  const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.js')
-  const { applyLocalePreference } = await vite.ssrLoadModule('/src/i18n/index.js')
+  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.ts')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
+  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.ts')
+  const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.ts')
+  const { applyLocalePreference } = await vite.ssrLoadModule('/src/i18n/index.ts')
   const componentModule = await vite.ssrLoadModule('/src/components/settings/SettingsExtensions.vue')
   const SettingsExtensions = componentModule.default
   const settingsExtensionsSource = await readFile(

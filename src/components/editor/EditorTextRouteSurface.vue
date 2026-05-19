@@ -27,7 +27,7 @@
   />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { defineAsyncComponent, ref } from 'vue'
 
 const DocumentWorkspaceTab = defineAsyncComponent(() => import('./DocumentWorkspaceTab.vue'))

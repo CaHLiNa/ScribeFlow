@@ -147,9 +147,9 @@ try {
     revealWorkspaceTreeState,
     restoreCachedExpandedTreeState,
     resolveFileTreeDisplayState,
-  } = await vite.ssrLoadModule('/src/services/fileTreeSystem.js')
+  } = await vite.ssrLoadModule('/src/services/fileTreeSystem.ts')
   const { readWorkspaceFlatFiles, readWorkspaceTreeSnapshot } = await vite.ssrLoadModule(
-    '/src/services/workspaceSnapshotIO.js',
+    '/src/services/workspaceSnapshotIO.ts',
   )
 
   const rawTree = [

@@ -82,7 +82,7 @@ try {
   const {
     requestLatexPdfBackwardSync,
     requestLatexPdfForwardSync,
-  } = await vite.ssrLoadModule('/src/services/pdf/artifactPreview.js')
+  } = await vite.ssrLoadModule('/src/services/pdf/artifactPreview.ts')
 
   const backwardOptions = {
     synctexPath: 42,

@@ -16,7 +16,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { defineAsyncComponent, ref } from 'vue'
 
 const TextEditor = defineAsyncComponent(() => import('./TextEditor.vue'))

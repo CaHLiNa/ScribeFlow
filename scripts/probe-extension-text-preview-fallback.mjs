@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { loadExtensionTextPreviewContent } from '../src/services/extensions/extensionTextPreview.js'
+import { loadExtensionTextPreviewContent } from '../src/services/extensions/extensionTextPreview.ts'
 
 async function main() {
   const calls = []

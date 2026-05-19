@@ -106,7 +106,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { normalizeWorkbenchState } = await vite.ssrLoadModule('/src/services/workspacePreferences.js')
+  const { normalizeWorkbenchState } = await vite.ssrLoadModule('/src/services/workspacePreferences.ts')
 
   const rawState = {
     primarySurface: 'settings',

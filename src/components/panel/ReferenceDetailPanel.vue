@@ -57,7 +57,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount, reactive, ref, watch } from 'vue'
 import { useI18n } from '../../i18n'
 import {
@@ -68,10 +68,10 @@ import {
   hasReferenceDetailDraftFieldChanged,
   normalizeReferenceDetailAuthors,
   normalizeReferenceDetailText,
-} from '../../domains/references/referenceDetailDraft.js'
-import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.js'
-import { useReferenceDetailActions } from '../../composables/references/useReferenceDetailActions.js'
-import { useReferenceDetailTokenActions } from '../../composables/references/useReferenceDetailTokenActions.js'
+} from '../../domains/references/referenceDetailDraft.ts'
+import { getReferenceTypeLabelKey } from '../../domains/references/referencePresentation.ts'
+import { useReferenceDetailActions } from '../../composables/references/useReferenceDetailActions.ts'
+import { useReferenceDetailTokenActions } from '../../composables/references/useReferenceDetailTokenActions.ts'
 import { useReferencesStore } from '../../stores/references'
 import { useToastStore } from '../../stores/toast'
 import { useWorkspaceStore } from '../../stores/workspace'

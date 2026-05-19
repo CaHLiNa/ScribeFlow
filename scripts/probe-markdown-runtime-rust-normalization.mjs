@@ -62,7 +62,7 @@ try {
     extractMarkdownDraftProblems,
     extractMarkdownWikiLinks,
     resolveMarkdownLinkIndex,
-  } = await vite.ssrLoadModule('/src/services/markdown/runtimeBridge.js')
+  } = await vite.ssrLoadModule('/src/services/markdown/runtimeBridge.ts')
 
   await extractMarkdownHeadingItems(42)
   await extractMarkdownDraftProblems(['raw-content'], false)

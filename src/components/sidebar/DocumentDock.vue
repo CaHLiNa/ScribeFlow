@@ -24,7 +24,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, ref, toRef, watch } from 'vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
@@ -33,22 +33,22 @@ import {
   DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
   isDocumentDockPluginPage,
-} from '../../domains/editor/documentDockPages.js'
+} from '../../domains/editor/documentDockPages.ts'
 import {
   findInlineDockPage,
   resolveInlineDockActivePageKey,
   resolveInlineDockFallbackPage,
-} from '../../domains/workbench/inlineDockPageRegistry.js'
+} from '../../domains/workbench/inlineDockPageRegistry.ts'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { useExtensionsStore } from '../../stores/extensions'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
-import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.js'
-import { useBasename } from '../../composables/useFileMetadata.js'
-import { buildExtensionContext } from '../../domains/extensions/extensionContext.js'
+import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.ts'
+import { useBasename } from '../../composables/useFileMetadata.ts'
+import { buildExtensionContext } from '../../domains/extensions/extensionContext.ts'
 import InlineDockTabBar from '../layout/InlineDockTabBar.vue'
-import { documentDockPageRegistry } from './documentDockPageRegistry.js'
+import { documentDockPageRegistry } from './documentDockPageRegistry.ts'
 
 const props = defineProps({
   filePath: { type: String, required: true },

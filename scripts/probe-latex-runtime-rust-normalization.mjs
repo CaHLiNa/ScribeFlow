@@ -128,7 +128,7 @@ try {
     checkLatexCompilers,
     checkLatexTools,
     formatLatexDocument,
-  } = await vite.ssrLoadModule('/src/services/latex/runtime.js')
+  } = await vite.ssrLoadModule('/src/services/latex/runtime.ts')
 
   await scheduleLatexRuntime({
     sourcePath: 42,

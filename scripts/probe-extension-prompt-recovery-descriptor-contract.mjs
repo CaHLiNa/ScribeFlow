@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildExtensionPromptRecoveryDescriptor } from '../src/domains/extensions/extensionPromptRecovery.js'
+import { buildExtensionPromptRecoveryDescriptor } from '../src/domains/extensions/extensionPromptRecovery.ts'
 
 const empty = buildExtensionPromptRecoveryDescriptor(null)
 assert.equal(empty.available, false)

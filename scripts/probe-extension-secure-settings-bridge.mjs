@@ -2,7 +2,7 @@ import assert from 'node:assert/strict'
 import { webcrypto } from 'node:crypto'
 import { createPinia, setActivePinia } from 'pinia'
 import { createLogger, createServer } from 'vite'
-import { secureSettingInputType } from '../src/domains/extensions/extensionSettingPresentation.js'
+import { secureSettingInputType } from '../src/domains/extensions/extensionSettingPresentation.ts'
 
 if (!globalThis.window) {
   globalThis.window = globalThis
@@ -61,8 +61,8 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   }, { shouldMockEvents: true })
 
-  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
+  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.ts')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
 
   const pinia = createPinia()
   setActivePinia(pinia)

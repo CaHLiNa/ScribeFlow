@@ -48,7 +48,7 @@
   </header>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { IconX } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 

@@ -48,7 +48,7 @@ try {
   const {
     formatCitation,
     formatReferenceCitationById,
-  } = await vite.ssrLoadModule('/src/services/references/citationFormatter.js')
+  } = await vite.ssrLoadModule('/src/services/references/citationFormatter.ts')
   const rendered = await formatReferenceCitationById(
     'IEEE',
     'inline',

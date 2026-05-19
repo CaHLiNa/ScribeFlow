@@ -4,14 +4,14 @@
   </SettingsSurface>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, defineAsyncComponent } from 'vue'
 import { useI18n } from '../../i18n'
 import { useWorkspaceStore } from '../../stores/workspace'
 import {
   resolveSettingsSectionId,
   resolveSettingsSectionMeta,
-} from '../../domains/settings/settingsSections.js'
+} from '../../domains/settings/settingsSections.ts'
 import SettingsSurface from './SettingsSurface.vue'
 
 const SettingsGeneral = defineAsyncComponent(() => import('./SettingsGeneral.vue'))

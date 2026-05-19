@@ -41,7 +41,7 @@
   </Teleport>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useToastStore } from '../../stores/toast'
 import {
   IconCircleCheck,

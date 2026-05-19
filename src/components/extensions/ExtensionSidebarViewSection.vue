@@ -85,7 +85,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useI18n } from '../../i18n'
 import ExtensionCountBadge from './ExtensionCountBadge.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'

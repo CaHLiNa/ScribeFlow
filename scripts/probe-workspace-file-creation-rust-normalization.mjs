@@ -49,7 +49,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { createWorkspaceFile } = await vite.ssrLoadModule('/src/services/fileStoreIO.js')
+  const { createWorkspaceFile } = await vite.ssrLoadModule('/src/services/fileStoreIO.ts')
 
   await createWorkspaceFile(' /tmp/workspace ', ' note.tex ', {
     initialContent: 42,

@@ -34,7 +34,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import {
   IconAdjustmentsHorizontal,
@@ -51,7 +51,7 @@ import UiButton from '../shared/ui/UiButton.vue'
 import {
   buildSettingsSectionItems,
   resolveSettingsSectionId,
-} from '../../domains/settings/settingsSections.js'
+} from '../../domains/settings/settingsSections.ts'
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()

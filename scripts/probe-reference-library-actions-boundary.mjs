@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
 const workbenchSource = await readFile('src/components/references/ReferenceLibraryWorkbench.vue', 'utf8')
-const actionsSource = await readFile('src/composables/references/useReferenceLibraryActions.js', 'utf8')
+const actionsSource = await readFile('src/composables/references/useReferenceLibraryActions.ts', 'utf8')
 
 assert.match(
   workbenchSource,
-  /import \{ useReferenceLibraryActions \} from '\.\.\/\.\.\/composables\/references\/useReferenceLibraryActions\.js'/,
+  /import \{ useReferenceLibraryActions \} from '\.\.\/\.\.\/composables\/references\/useReferenceLibraryActions\.ts'/,
   'ReferenceLibraryWorkbench must use the reference action workflow composable',
 )
 assert.match(

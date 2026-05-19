@@ -95,8 +95,8 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { resolveFileTreeDisplayState } = await vite.ssrLoadModule('/src/services/fileTreeSystem.js')
-  const { loadWorkspaceBootstrapData } = await vite.ssrLoadModule('/src/services/workspaceRecents.js')
+  const { resolveFileTreeDisplayState } = await vite.ssrLoadModule('/src/services/fileTreeSystem.ts')
+  const { loadWorkspaceBootstrapData } = await vite.ssrLoadModule('/src/services/workspaceRecents.ts')
 
   const displayResult = await resolveFileTreeDisplayState({
     tree: sourceTree,

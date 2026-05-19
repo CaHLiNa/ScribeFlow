@@ -64,7 +64,7 @@ try {
   const {
     loadI18nRuntime,
     loadSavedLocalePreference,
-  } = await vite.ssrLoadModule('/src/services/i18nRuntime.js')
+  } = await vite.ssrLoadModule('/src/services/i18nRuntime.ts')
 
   await loadI18nRuntime(42)
   await loadI18nRuntime(' zh-CN ')

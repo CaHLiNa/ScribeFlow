@@ -85,11 +85,11 @@ function createEditorStore({ viewAppearsAfterPolls = 1 } = {}) {
 
 try {
   const { createMarkdownRevealLifecycle } =
-    await vite.ssrLoadModule('/src/editor/markdownRevealTiming.js')
+    await vite.ssrLoadModule('/src/editor/markdownRevealTiming.ts')
   const {
     revealMarkdownSourceLocation,
     waitForMarkdownEditorViewWithLifecycle,
-  } = await vite.ssrLoadModule('/src/services/markdown/reveal.js')
+  } = await vite.ssrLoadModule('/src/services/markdown/reveal.ts')
 
   const firstScheduler = createManualScheduler()
   const firstLifecycle = createMarkdownRevealLifecycle({ scheduler: firstScheduler })

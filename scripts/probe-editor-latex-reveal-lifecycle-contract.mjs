@@ -104,11 +104,11 @@ function createEditorStore({ viewAppearsAfterPolls = 1 } = {}) {
 
 try {
   const { createLatexRevealLifecycle } =
-    await vite.ssrLoadModule('/src/editor/latexRevealTiming.js')
+    await vite.ssrLoadModule('/src/editor/latexRevealTiming.ts')
   const {
     revealLatexSourceLocation,
     waitForLatexEditorViewWithLifecycle,
-  } = await vite.ssrLoadModule('/src/services/latex/previewSync.js')
+  } = await vite.ssrLoadModule('/src/services/latex/previewSync.ts')
 
   const firstScheduler = createManualScheduler()
   const firstLifecycle = createLatexRevealLifecycle({ scheduler: firstScheduler })

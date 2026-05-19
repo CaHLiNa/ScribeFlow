@@ -92,7 +92,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, reactive, computed, nextTick, watch, onBeforeUnmount } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
@@ -103,7 +103,7 @@ import {
   resolveNewMenuStyle,
   resolveWorkspaceMenuPosition,
   resolveWorkspaceMenuStyle,
-} from '../../domains/files/fileTreePresentation.js'
+} from '../../domains/files/fileTreePresentation.ts'
 import { listWorkspaceDocumentTemplates } from '../../domains/workspace/workspaceTemplateRuntime'
 import FileTreeBody from './FileTreeBody.vue'
 import FileTreeFooter from './FileTreeFooter.vue'
@@ -111,7 +111,7 @@ import FileTreeHeader from './FileTreeHeader.vue'
 import FileTreeOverlays from './FileTreeOverlays.vue'
 import { isMod } from '../../platform'
 import { useI18n } from '../../i18n'
-import { useFileTreeActions } from '../../composables/files/useFileTreeActions.js'
+import { useFileTreeActions } from '../../composables/files/useFileTreeActions.ts'
 import { useFileTreeRows } from '../../composables/useFileTreeRows'
 import { useFileTreeDrag } from '../../composables/useFileTreeDrag'
 import { useTransientOverlayDismiss } from '../../composables/useTransientOverlayDismiss'

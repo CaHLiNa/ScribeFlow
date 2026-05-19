@@ -2,7 +2,7 @@
   <WorkspaceStarter :pane-id="paneId" />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import WorkspaceStarter from './WorkspaceStarter.vue'
 
 defineProps({

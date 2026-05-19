@@ -24,7 +24,7 @@ try {
     clearPendingMarkdownForwardSync,
     rememberPendingMarkdownForwardSync,
     takePendingMarkdownForwardSync,
-  } = await vite.ssrLoadModule('/src/services/markdown/previewSync.js')
+  } = await vite.ssrLoadModule('/src/services/markdown/previewSync.ts')
 
   clearPendingMarkdownForwardSync()
 

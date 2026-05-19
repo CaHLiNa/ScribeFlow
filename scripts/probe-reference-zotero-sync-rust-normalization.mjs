@@ -288,8 +288,8 @@ try {
     loadZoteroConfig,
     saveZoteroConfig,
     syncNow,
-  } = await vite.ssrLoadModule('/src/services/references/zoteroSync.js')
-  const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.js')
+  } = await vite.ssrLoadModule('/src/services/references/zoteroSync.ts')
+  const { useReferencesStore } = await vite.ssrLoadModule('/src/stores/references.ts')
 
   const pinia = createPinia()
   setActivePinia(pinia)

@@ -66,7 +66,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, ref, nextTick, onBeforeUnmount } from 'vue'
 
 const props = defineProps({

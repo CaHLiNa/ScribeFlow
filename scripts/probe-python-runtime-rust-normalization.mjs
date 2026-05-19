@@ -85,7 +85,7 @@ try {
   })
 
   const { listPythonRuntimes, compilePythonFile } = await vite.ssrLoadModule(
-    '/src/services/pythonRuntime.js',
+    '/src/services/pythonRuntime.ts',
   )
 
   const listResult = await listPythonRuntimes(42)

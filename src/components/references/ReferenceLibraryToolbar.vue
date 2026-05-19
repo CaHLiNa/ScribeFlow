@@ -50,7 +50,7 @@
   </header>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { IconFileCode, IconFileTypePdf, IconPlus, IconShare } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'

@@ -54,7 +54,7 @@ try {
     openExtensionArtifact,
     revealExtensionArtifact,
     readExtensionArtifactText,
-  } = await vite.ssrLoadModule('/src/services/extensions/extensionArtifacts.js')
+  } = await vite.ssrLoadModule('/src/services/extensions/extensionArtifacts.ts')
 
   await openExtensionArtifact({ path: ' /tmp/scribeflow-artifact.txt ' })
   await revealExtensionArtifact({ path: 42 })

@@ -10,7 +10,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 defineProps({
   title: { type: String, default: '' },
 })

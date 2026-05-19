@@ -46,7 +46,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { toWorkspaceProtocolUrl } = await vite.ssrLoadModule('/src/services/workspaceProtocolUrl.js')
+  const { toWorkspaceProtocolUrl } = await vite.ssrLoadModule('/src/services/workspaceProtocolUrl.ts')
 
   const workspace = {
     path: ' /tmp/workspace ',

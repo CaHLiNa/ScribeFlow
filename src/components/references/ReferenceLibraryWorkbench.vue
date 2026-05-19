@@ -64,22 +64,22 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { useReferencesStore } from '../../stores/references'
-import { useReferenceLibraryActions } from '../../composables/references/useReferenceLibraryActions.js'
+import { useReferenceLibraryActions } from '../../composables/references/useReferenceLibraryActions.ts'
 import {
   findInlineDockPage,
   resolveInlineDockActivePageKey,
   resolveInlineDockFallbackPageType,
-} from '../../domains/workbench/inlineDockPageRegistry.js'
+} from '../../domains/workbench/inlineDockPageRegistry.ts'
 import {
   REFERENCE_DOCK_CITED_IN_PAGE,
   REFERENCE_DOCK_DETAILS_PAGE,
   REFERENCE_DOCK_PDF_PAGE,
-} from '../../domains/references/referenceDockPages.js'
+} from '../../domains/references/referenceDockPages.ts'
 import {
   REFERENCE_WORKBENCH_DETAIL_CLOSE_RESET_DELAY_MS,
   buildReferenceDetailResizeConstraints,
@@ -89,12 +89,12 @@ import {
   resolveReferenceDetailDockWidth,
   resolveReferencePdfPath,
   shouldReconcileReferenceDetailWidth,
-} from '../../domains/references/referenceWorkbenchPresentation.js'
+} from '../../domains/references/referenceWorkbenchPresentation.ts'
 import ReferenceAddDialog from './ReferenceAddDialog.vue'
 import ReferenceLibraryDetailDock from './ReferenceLibraryDetailDock.vue'
 import ReferenceLibraryMain from './ReferenceLibraryMain.vue'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
-import { referenceDockPageRegistry } from './referenceDockPageRegistry.js'
+import { referenceDockPageRegistry } from './referenceDockPageRegistry.ts'
 
 const props = defineProps({
   referenceDetailOpen: { type: Boolean, default: false },

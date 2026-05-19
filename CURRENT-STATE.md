@@ -46,14 +46,14 @@ ScribeFlow 是一个 local-first 的 Tauri 桌面学术写作与研究工作台�
 
 当前实现状态：
 
-- frontend 已是 Vue 3 + Pinia + Vite，但大部分 frontend/source bridge 仍是 JavaScript。
+- frontend 已是 Vue 3 + Pinia + Vite，`src/` app 源码已迁移为 TypeScript + Vue SFC。
 - TypeScript native bridge authority 迁移已完成：direct `@tauri-apps/*` imports 只允许出现在 `src/services/tauriBridge.ts`。
 - `src/services/tauriBridge.ts` 统一封装 Tauri `invoke`、native events、app version、clipboard、dialog、shell 和 window APIs。
-- 存量 `src/services/**/*.js` 仍可作为 feature-specific service wrappers / DTO adapters 存在，但它们只能通过 `tauriBridge.ts` 触达 native runtime，不能直接 import Tauri 或 plugins。
-- `appUpdater.js`、filesystem/workspace/reference/extension/LaTeX/Python 等 service wrappers 已从 direct `invoke/listen` 切到 TypeScript bridge entrypoint。
-- `tsconfig.bridge.json` 和 `npm run verify:bridge` 已加入工程 gate；标准 `npm run verify` 会运行 bridge typecheck。
-- boundary guards 已开始覆盖 `.ts` 文件，使后续 TypeScript 迁移仍受 UI bridge / JS-layer boundary 约束。
-- 后续如果继续强类型化，可逐步把 JS service wrappers / DTO adapters 改成 `.ts`；这属于 typing hardening，不再是 native bridge authority 迁移的 blocker。
+- 存量 `src/services/**/*.ts` 作为 feature-specific service wrappers / DTO adapters 存在，但它们只能通过 `tauriBridge.ts` 触达 native runtime，不能直接 import Tauri 或 plugins。
+- `appUpdater.ts`、filesystem/workspace/reference/extension/LaTeX/Python 等 service wrappers 已从 direct `invoke/listen` 切到 TypeScript bridge entrypoint。
+- `tsconfig.bridge.json` 严格覆盖 native bridge authority；`tsconfig.app.json` 覆盖全量 `src/**/*.ts` parse/module gate。标准 `npm run verify` 会运行两者。
+- boundary guards 已覆盖 `.ts` 和 `.vue` 文件，使后续 TypeScript work 仍受 UI bridge / layer boundary 约束。
+- `scripts/*.mjs` 仍是 Node 工程验证入口；它们可以 import/SSR load `src/**/*.ts`，但不属于 app frontend 源码。
 
 - `src/app`：desktop lifecycle 和 shell orchestration
 - `src/components`：Vue UI surfaces
@@ -69,7 +69,7 @@ Canonical layer 表：
 | --- | --- |
 | Vue 3 frontend | 渲染 product surfaces，接收 props，发出 user intent，展示 loading/error/empty states |
 | TypeScript native bridge | `src/services/tauriBridge.ts` owns direct Tauri commands, plugins, native events and app/window/plugin APIs |
-| Service wrappers | 存量 `src/services/**/*.js` owns feature-specific DTO compatibility and side effects through `tauriBridge.ts` |
+| Service wrappers | `src/services/**/*.ts` owns feature-specific DTO compatibility and side effects through `tauriBridge.ts` |
 | Pinia coordination | `src/stores` 拥有 screen state、orchestration、loading/error lifecycle 和 service calls |
 | Frontend domains | `src/domains` 拥有 pure presentation rules、labels、sorting 和 deterministic state derivation |
 | Rust backend/runtime | `src-tauri/src` 拥有 filesystem、workspace state、references、runtime execution、persistence、plugins 和 security |
@@ -84,19 +84,19 @@ Canonical layer 表：
 - Vue 拥有 plugin prompt rendering、plugin sidebar rendering、command palette integration，以及通过 `src/services` bridge 进行的 runtime event presentation。
 - 前端保持为 thin bridge 和 UI coordination layer，而不是第二套 backend；TypeScript bridge 不能接管 Rust-owned policy。
 - `src/domains` 不得获得 native bridge、persistence、filesystem 或 process authority；任何剩余 cleanup debt 都应在 code-adjacent tasks 中追踪，而不是放在 stale planning documents 里。
-- Tauri command payload shape 变化必须在同一 commit 中更新 Rust command handling、TypeScript/JS bridge DTO mapping、store call sites 和 regression verification。
+- Tauri command payload shape 变化必须在同一 commit 中更新 Rust command handling、TypeScript bridge DTO mapping、store call sites 和 regression verification。
 - Editor core changes 必须进入独立的 editor-specific phase；global module cleanup 不得改变 cursor、selection、reveal、scroll、CodeMirror behavior、editor session payloads 或 editor event timing。
 
 当前 reference authority 方向：
 
 - Reference cleanup 是 Rust-first：Rust 拥有 reference truth、filesystem authority、persistence、mutation/result normalization、citation/render targets、imports、PDF assets 和 Zotero sync。
-- `src/domains/references/referenceStoreState.js` 现在只包含 UI state/display helpers；Rust query DTO readers 单独放在 `src/domains/references/referenceResolvedQueryDto.js`。
-- 后续 reference 工作应继续把 JS 收缩到 UI presentation、DTO compatibility、Tauri bridge wrappers 和 short-term Pinia coordination。
-- Reference helper classification 应保持 code-adjacent：UI-only helpers 留在 JS domains，DTO compatibility 靠近 service/domain adapters，runtime authority 属于 Rust。
+- `src/domains/references/referenceStoreState.ts` 现在只包含 UI state/display helpers；Rust query DTO readers 单独放在 `src/domains/references/referenceResolvedQueryDto.ts`。
+- 后续 reference 工作应继续把 TS 收缩到 UI presentation、DTO compatibility、Tauri bridge wrappers 和 short-term Pinia coordination。
+- Reference helper classification 应保持 code-adjacent：UI-only helpers 留在 TypeScript domains，DTO compatibility 靠近 service/domain adapters，runtime authority 属于 Rust。
 
 允许/禁止示例：
 
-- 允许：`ReferenceDetailPanel.vue` 编辑 local draft state，`references.js` 通过 `referenceRuntime` 发送一个 mutation request，Rust 校验、normalize 并持久化 reference。
+- 允许：`ReferenceDetailPanel.vue` 编辑 local draft state，`references.ts` 通过 `referenceRuntime` 发送一个 mutation request，Rust 校验、normalize 并持久化 reference。
 - 禁止：Vue components 直接写 normalized reference records，或复制 Rust-owned merge policy。
 - 允许：service wrapper 调用 Tauri command 并映射 camelCase DTOs。
 - 禁止：service wrapper 成为 workspace security、reference merging、plugin host lifecycle 或 persisted settings schema 的 policy owner。
@@ -200,41 +200,41 @@ Plugin 架构方向：
 - app shell frame ownership 现在已按 Vue component boundary 拆分：`App.vue` 保留 store、workspace lifecycle、active workbench selection、extension prompt/palette orchestration、zen-mode listeners 和 teardown/event bridges，`AppShellFrame.vue` 拥有 root shell/topbar/left-sidebar/main-card/resize-slot DOM 和 scoped shell CSS。
 - file tree body ownership 现在已按 Vue component boundary 拆分：`FileTree.vue` 保留 keyboard、drag/drop、context-menu、mutation 和 store orchestration，`FileTreeBody.vue` 拥有 scroll-body DOM、virtual row rendering、root inline-create input、drop/empty state chrome 和 body scoped CSS。
 - file tree overlay ownership 现在也已按 Vue component boundary 拆分：`FileTree.vue` 保留 menu state、positioning、document listeners、file mutation 和 workspace/editor orchestration，`FileTreeOverlays.vue` 拥有 context-menu/workspace-menu/new-menu/drag-ghost composition，并只把 menu DOM accessors 暴露回 coordinator。
-- file tree action workflow ownership 现在已从 file-tree coordinator 拆出：`FileTree.vue` 保留 menu positioning、overlay lifecycle、virtual row wiring、keyboard dispatch 和 drag/drop wiring，`useFileTreeActions.js` 拥有 inline create/rename/duplicate/delete/reveal/document-dock side effects 以及 file/workspace/editor store dispatch。
+- file tree action workflow ownership 现在已从 file-tree coordinator 拆出：`FileTree.vue` 保留 menu positioning、overlay lifecycle、virtual row wiring、keyboard dispatch 和 drag/drop wiring，`useFileTreeActions.ts` 拥有 inline create/rename/duplicate/delete/reveal/document-dock side effects 以及 file/workspace/editor store dispatch。
 - reference workbench detail dock ownership 现在已按 Vue component boundary 拆分：`ReferenceLibraryWorkbench.vue` 保留 reference selection、page activation、tab fallback、resize、import/export 和 context-menu orchestration，`ReferenceLibraryDetailDock.vue` 拥有 inline dock frame、tabbar、active page render slot、empty state 和 detail tab scoped CSS。
 - reference workbench main-list ownership 现在也已按 Vue component boundary 拆分：`ReferenceLibraryWorkbench.vue` 保留 import/export、selected-reference、context-menu、sort 和 dock orchestration，`ReferenceLibraryMain.vue` 拥有 toolbar/status/empty/table composition 和 main-list scoped CSS。
-- reference action workflow ownership 现在已从 workbench coordinator 拆出：`ReferenceLibraryWorkbench.vue` 保留 selection、dock page activation、resize/layout reconciliation 和 shell composition，`useReferenceLibraryActions.js` 拥有 native import/export dialogs、clipboard copy、toast/status feedback、context-menu action binding 和 reference store action dispatch。
-- reference detail PDF action workflow ownership 现在已从 detail coordinator 拆出：`ReferenceDetailPanel.vue` 保留 draft lifecycle 和 save orchestration，`useReferenceDetailActions.js` 通过既有 store/service boundary 拥有 PDF preview/open/reveal/attach action side effects。
-- reference detail token workflow ownership 现在也已从 detail coordinator 拆出：`ReferenceDetailPanel.vue` 保留 draft/save queue，`useReferenceDetailTokenActions.js` 通过 callback-based save wiring 拥有 tag input、tag removal、collection removal 和 collection label resolution。
-- reference imported-reference commit workflow 现在在 `src/stores/references.js` 内共享：BibTeX/file imports 和 resolved-text imports 复用同一个 snapshot commit/result mapping helper，而 Rust `references_mutation_apply` 仍是 merge 和 duplicate policy authority。
-- import/add/update/remove/collection/document-reference/toggle flows 的 reference mutation outcome 现在由 Rust 返回：`references_mutation_apply` 接收当前 `selectedReferenceId`，返回 changed/removed/toggled flags、collection payloads、selected reference payloads 和 preferred selection hints；`src/stores/references.js` 提交返回的 snapshot 并直接消费 `mutation.result`，不再通过 `referenceStoreState.js` 重建 result。
-- reference import input preflight 现在也由 Rust 拥有：`mergeImportedReferences` 接收 raw imported payload intent，在 Rust 中把 non-array/empty imports 视作 empty，返回 `emptyImport`、empty result shape 和 preferred selection；当 Rust 返回 empty-import outcome 时，JS 跳过 snapshot commit。
-- reference metadata refresh target state 现在也由 Rust 拥有：`src/stores/references.js` 通过 thin Crossref bridge 传入当前 references snapshot 和 `referenceId`，`references_runtime.rs` 解析 target reference，保留 missing-target null semantics，执行 backend metadata lookup 并返回 normalized refreshed record。
+- reference action workflow ownership 现在已从 workbench coordinator 拆出：`ReferenceLibraryWorkbench.vue` 保留 selection、dock page activation、resize/layout reconciliation 和 shell composition，`useReferenceLibraryActions.ts` 拥有 native import/export dialogs、clipboard copy、toast/status feedback、context-menu action binding 和 reference store action dispatch。
+- reference detail PDF action workflow ownership 现在已从 detail coordinator 拆出：`ReferenceDetailPanel.vue` 保留 draft lifecycle 和 save orchestration，`useReferenceDetailActions.ts` 通过既有 store/service boundary 拥有 PDF preview/open/reveal/attach action side effects。
+- reference detail token workflow ownership 现在也已从 detail coordinator 拆出：`ReferenceDetailPanel.vue` 保留 draft/save queue，`useReferenceDetailTokenActions.ts` 通过 callback-based save wiring 拥有 tag input、tag removal、collection removal 和 collection label resolution。
+- reference imported-reference commit workflow 现在在 `src/stores/references.ts` 内共享：BibTeX/file imports 和 resolved-text imports 复用同一个 snapshot commit/result mapping helper，而 Rust `references_mutation_apply` 仍是 merge 和 duplicate policy authority。
+- import/add/update/remove/collection/document-reference/toggle flows 的 reference mutation outcome 现在由 Rust 返回：`references_mutation_apply` 接收当前 `selectedReferenceId`，返回 changed/removed/toggled flags、collection payloads、selected reference payloads 和 preferred selection hints；`src/stores/references.ts` 提交返回的 snapshot 并直接消费 `mutation.result`，不再通过 `referenceStoreState.ts` 重建 result。
+- reference import input preflight 现在也由 Rust 拥有：`mergeImportedReferences` 接收 raw imported payload intent，在 Rust 中把 non-array/empty imports 视作 empty，返回 `emptyImport`、empty result shape 和 preferred selection；当 Rust 返回 empty-import outcome 时，frontend 跳过 snapshot commit。
+- reference metadata refresh target state 现在也由 Rust 拥有：`src/stores/references.ts` 通过 thin Crossref bridge 传入当前 references snapshot 和 `referenceId`，`references_runtime.rs` 解析 target reference，保留 missing-target null semantics，执行 backend metadata lookup 并返回 normalized refreshed record。
 - reference PDF asset target resolution 现在也由 Rust 拥有：attach/rename actions 通过 thin `referenceAssets` bridge 传入当前 references snapshot 和 `referenceId`，`references_backend.rs` 选择 target reference，保留 missing-target null semantics，并执行 asset store/rename filesystem work。
-- reference removal target 和 Zotero delete side-effect target state 现在也由 Rust 拥有：`removeReference()` 通过 `references_mutation_apply` 发送 raw `referenceId`，Rust 解析 removed reference，返回 `removedReference`、`zoteroDeleteReference`、removed flag 和 preferred selection，JS 只在 Rust 返回 delete target 时调用 Zotero delete。
+- reference removal target 和 Zotero delete side-effect target state 现在也由 Rust 拥有：`removeReference()` 通过 `references_mutation_apply` 发送 raw `referenceId`，Rust 解析 removed reference，返回 `removedReference`、`zoteroDeleteReference`、removed flag 和 preferred selection，TS 只在 Rust 返回 delete target 时调用 Zotero delete。
 - reference update mutation changed gating 和 commit preferred-selection fallback 现在来自 Rust mutation outcome。
-- reference PDF import target/result state 现在也由 Rust 拥有：`references_mutation_apply(importPdfReference)` 返回 imported snapshot、selected reference id、selected reference payload 和 preferred selection；`importReferencePdf()` 将该 snapshot/id 发送给 `references_asset_store`，并消费 Rust update mutation result，不再使用 `referenceStoreState.js` target/result helpers。
-- reference collection/document-reference/toggle mutation state 现在直接来自 Rust：create/rename collection、remove collection、set/add/remove document reference ids 和 toggle collection actions 都消费 `mutation.result`，不再使用 JS result wrappers 或 JS document-reference mutation preflight。
-- reference citation-style state 现在也由 domain 派生：citation-style id fallback 和 workspace style-list fallback 位于 `referenceStoreState.js`，`src/stores/references.js` 保留 style registry lookups、workspace scanning 和 user-style registry side effects 于 service/store boundary。
-- reference Zotero sync result state 现在也由 Rust 拥有：`references_zotero_sync_persist_with_account` 返回 frontend-ready 的 skipped state、counts、selected reference id、snapshot、sync status 和 last-sync timestamp，`src/stores/references.js` 只应用 snapshots 并赋值返回的 UI state。
-- reference citation formatting target lookup 现在由 Rust 拥有：`src/stores/references.js` 通过 thin `formatReferenceCitationById` bridge 传入 `referenceId`、当前 `references` snapshot 和 workspace path，`references_citation.rs` 解析 target，保留 missing-id empty output semantics，并从 Rust-selected reference 渲染。
-- reference mutation snapshot commit workflow 现在在 `src/stores/references.js` 内共享：collection、document-reference、reference-record 和 PDF-asset update mutations 复用 `commitReferenceMutationSnapshot()` 处理 snapshot fallback 和 commit options，而 Rust `references_mutation_apply` 仍是 mutation policy authority。
-- reference citation usage key derivation 现在也由 domain 派生：从 citation usage index 创建 cited-key set 的逻辑位于 `referenceStoreState.js`，`src/stores/references.js` 保留 public getter surface。
-- reference selected target lookup 现在也归 Rust-query：`references_query_resolve` 返回 selected reference、selected collection/tag、reference lookup maps 和 search index，`src/stores/references.js` 只通过 `referenceResolvedQueryDto.js` 读取这些 DTOs，用于 public getters/actions。
-- reference document selection lookup 和 available-reference targets 现在也归 Rust-query：`references_query_resolve` 接收 `documentReferenceSelections`，返回 per-document selected ids/references/key lookup，以及 available-reference lists/search index；`referenceResolvedQueryDto.js` 只为现有 synchronous editor/citation APIs 适配这些 Rust DTOs。
-- reference search filtering 现在也归 Rust-query：`references_query_search` 接收当前 reference snapshot、document-reference selections、TeX path、query 和 sort key，返回 matching library/document/available reference DTOs 以及 library lookup maps；CitationPalette/DocumentReferencesPanel 通过 `searchReferenceQuery` 消费这些 async results，而不是在 JS 中重建 search haystacks 或同步读取 selected document-reference DTOs。
+- reference PDF import target/result state 现在也由 Rust 拥有：`references_mutation_apply(importPdfReference)` 返回 imported snapshot、selected reference id、selected reference payload 和 preferred selection；`importReferencePdf()` 将该 snapshot/id 发送给 `references_asset_store`，并消费 Rust update mutation result，不再使用 `referenceStoreState.ts` target/result helpers。
+- reference collection/document-reference/toggle mutation state 现在直接来自 Rust：create/rename collection、remove collection、set/add/remove document reference ids 和 toggle collection actions 都消费 `mutation.result`，不再使用 TS result wrappers 或 TS document-reference mutation preflight。
+- reference citation-style state 现在也由 domain 派生：citation-style id fallback 和 workspace style-list fallback 位于 `referenceStoreState.ts`，`src/stores/references.ts` 保留 style registry lookups、workspace scanning 和 user-style registry side effects 于 service/store boundary。
+- reference Zotero sync result state 现在也由 Rust 拥有：`references_zotero_sync_persist_with_account` 返回 frontend-ready 的 skipped state、counts、selected reference id、snapshot、sync status 和 last-sync timestamp，`src/stores/references.ts` 只应用 snapshots 并赋值返回的 UI state。
+- reference citation formatting target lookup 现在由 Rust 拥有：`src/stores/references.ts` 通过 thin `formatReferenceCitationById` bridge 传入 `referenceId`、当前 `references` snapshot 和 workspace path，`references_citation.rs` 解析 target，保留 missing-id empty output semantics，并从 Rust-selected reference 渲染。
+- reference mutation snapshot commit workflow 现在在 `src/stores/references.ts` 内共享：collection、document-reference、reference-record 和 PDF-asset update mutations 复用 `commitReferenceMutationSnapshot()` 处理 snapshot fallback 和 commit options，而 Rust `references_mutation_apply` 仍是 mutation policy authority。
+- reference citation usage key derivation 现在也由 domain 派生：从 citation usage index 创建 cited-key set 的逻辑位于 `referenceStoreState.ts`，`src/stores/references.ts` 保留 public getter surface。
+- reference selected target lookup 现在也归 Rust-query：`references_query_resolve` 返回 selected reference、selected collection/tag、reference lookup maps 和 search index，`src/stores/references.ts` 只通过 `referenceResolvedQueryDto.ts` 读取这些 DTOs，用于 public getters/actions。
+- reference document selection lookup 和 available-reference targets 现在也归 Rust-query：`references_query_resolve` 接收 `documentReferenceSelections`，返回 per-document selected ids/references/key lookup，以及 available-reference lists/search index；`referenceResolvedQueryDto.ts` 只为现有 synchronous editor/citation APIs 适配这些 Rust DTOs。
+- reference search filtering 现在也归 Rust-query：`references_query_search` 接收当前 reference snapshot、document-reference selections、TeX path、query 和 sort key，返回 matching library/document/available reference DTOs 以及 library lookup maps；CitationPalette/DocumentReferencesPanel 通过 `searchReferenceQuery` 消费这些 async results，而不是在 TS 中重建 search haystacks 或同步读取 selected document-reference DTOs。
 - reference generated BibTeX sync target resolution 现在也由 Rust 拥有：`syncBibFileForTex()` 将完整 reference snapshot 和 `documentReferenceSelections` 传给 `references_write_bib_file`，Rust 会在写 generated `.bib` 前解析 TeX document 的 selected references。
 - reference export target resolution 现在也由 Rust 拥有：BibTeX export 和 JSON export actions 通过 thin `bibtexExport` bridge 传入当前 references snapshot 和 `referenceIds`/`referenceId`，`references_import.rs` 执行 ordered id filtering、BibTeX missing-id skip semantics、JSON target validation 和 exported-count reporting。
-- reference lookup readers 现在更窄：`referenceResolvedQueryDto.js` 不再暴露 exact-id helpers（`hasReferenceById` 或 `resolveReferenceById`），也不再包装 selected references；`selectReference()` 存储 raw selection intent 并等待 Rust query normalization，selected reference 直接读取 Rust 返回的 `selectedReference` field，其余 DTO readers 只为 synchronous editor/citation APIs 适配 citation-key/document-reference lookup maps。
+- reference lookup readers 现在更窄：`referenceResolvedQueryDto.ts` 不再暴露 exact-id helpers（`hasReferenceById` 或 `resolveReferenceById`），也不再包装 selected references；`selectReference()` 存储 raw selection intent 并等待 Rust query normalization，selected reference 直接读取 Rust 返回的 `selectedReference` field，其余 DTO readers 只为 synchronous editor/citation APIs 适配 citation-key/document-reference lookup maps。
 - reference sidebar/sort selection guards 现在也归 Rust-query：`setSelectedSection()`、`setSelectedSource()`、`setSelectedCollection()`、`setSelectedTag()` 和 `setSortKey()` 存储 raw user intent，然后让 `references_query_resolve` 返回 canonical section/source/collection/tag/sort keys。
-- reference resolved-query hydration 现在也由 Rust-backed：`src/stores/references.js` 不再在 JS 中构造 pending/default query DTO；`referenceResolvedQueryDto.js` 只接受 Rust-returned query DTOs，将返回字段映射回 store selection state，并且不再 fallback 到 prior Pinia query state、current selected-reference id 或 first filtered row。
-- reference sidebar selection reconciliation 不再在 JS 中 pre-validate：`src/stores/references.js` 清除 mutually exclusive UI filters，通过 query bridge 发送 raw selected key，并从 Rust hydrate normalized query result。
-- reference document-reference mutation derivation 现在也由 Rust 拥有：`setDocumentReferenceIds()`、`addDocumentReference()` 和 `removeDocumentReference()` 将 raw TeX path/reference id intent 传给 `references_mutation_apply`，Rust 在 JS 提交返回 snapshot 前处理 TeX path normalization、non-array id fallback、valid reference pruning、duplicate guards、next-id-list calculation 和 `changed` gating。
-- reference PDF dock tab state 现在也由 domain 派生：selected-tab checks、open/close/reset state、stale PDF tab pruning 和 post-snapshot details fallback decisions 位于 `referenceStoreState.js`，`src/stores/references.js` 只应用派生 dock state 并执行 workspace page switch side effect。
+- reference resolved-query hydration 现在也由 Rust-backed：`src/stores/references.ts` 不再在 TS 中构造 pending/default query DTO；`referenceResolvedQueryDto.ts` 只接受 Rust-returned query DTOs，将返回字段映射回 store selection state，并且不再 fallback 到 prior Pinia query state、current selected-reference id 或 first filtered row。
+- reference sidebar selection reconciliation 不再在 TS 中 pre-validate：`src/stores/references.ts` 清除 mutually exclusive UI filters，通过 query bridge 发送 raw selected key，并从 Rust hydrate normalized query result。
+- reference document-reference mutation derivation 现在也由 Rust 拥有：`setDocumentReferenceIds()`、`addDocumentReference()` 和 `removeDocumentReference()` 将 raw TeX path/reference id intent 传给 `references_mutation_apply`，Rust 在 TS 提交返回 snapshot 前处理 TeX path normalization、non-array id fallback、valid reference pruning、duplicate guards、next-id-list calculation 和 `changed` gating。
+- reference PDF dock tab state 现在也由 domain 派生：selected-tab checks、open/close/reset state、stale PDF tab pruning 和 post-snapshot details fallback decisions 位于 `referenceStoreState.ts`，`src/stores/references.ts` 只应用派生 dock state 并执行 workspace page switch side effect。
 - reference cleanup/reset 现在也由 Rust-backed：`referencesStore.cleanup()` 清除 transient UI flags，然后通过 `references_store_state_build` 应用 empty snapshot；workspace close 会在关闭 workspace 前 await 该 cleanup。
-- reference store bootstrap shell 现在由 Rust-backed：`referenceStoreState.js` 只构造 synchronous Pinia UI shell，`references_store_state_build` 返回 canonical library/source sections、normalized snapshot fields、selected filter keys、sort key 和 initial resolved query DTO，app startup 会在 workspace reopen 前 hydrate 这些 defaults。
-- reference snapshot apply normalization 现在也由 Rust 拥有：`applyLibrarySnapshot()` 将 raw snapshots 发送给 `references_store_state_build`，它会组合 snapshot normalization 和 `references_query_resolve` hydration；JS 只应用返回的 state fields，并把 PDF dock reconciliation 保留为 UI helper。
-- update/remove/import/add 的 reference mutation commit selection 现在由 Rust 返回：`src/stores/references.js` 将当前 selection 传入 `references_mutation_apply`，并用返回的 `preferredSelectedReferenceId` commit。
+- reference store bootstrap shell 现在由 Rust-backed：`referenceStoreState.ts` 只构造 synchronous Pinia UI shell，`references_store_state_build` 返回 canonical library/source sections、normalized snapshot fields、selected filter keys、sort key 和 initial resolved query DTO，app startup 会在 workspace reopen 前 hydrate 这些 defaults。
+- reference snapshot apply normalization 现在也由 Rust 拥有：`applyLibrarySnapshot()` 将 raw snapshots 发送给 `references_store_state_build`，它会组合 snapshot normalization 和 `references_query_resolve` hydration；TS 只应用返回的 state fields，并把 PDF dock reconciliation 保留为 UI helper。
+- update/remove/import/add 的 reference mutation commit selection 现在由 Rust 返回：`src/stores/references.ts` 将当前 selection 传入 `references_mutation_apply`，并用返回的 `preferredSelectedReferenceId` commit。
 - extension result preview presentation 现在也已共享：result preview surfaces 从一个 pure presentation helper 派生 preview mode、toolbar actions、blocked-action copy、busy keys 和 action-only empty states，而不是把 action branching 留在 Vue preview component 内。
 - settings capability cards 现在也消费 shared status pieces：blocked capability badges 通过 shared blocked-status chip 渲染，blocked capability run actions 通过 shared blocked-action button 渲染，ready/unavailable capability states 通过 shared status-pill component 渲染，而不是保留本地第五套 status shell。
 - failed extension tasks 现在将 structured results 保持为一等 runtime contract：如果 command/capability 以 `taskState: failed` 结束，persisted task records 仍保留 failure artifact/output snapshot 和 failure-specific progress label，而不是折叠成 error text only。

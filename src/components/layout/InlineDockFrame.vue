@@ -38,10 +38,10 @@
   </aside>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onBeforeUnmount, ref, watch } from 'vue'
-import { useDelayedRender } from '../../composables/useDelayedRender.js'
-import { useInlineDockResize } from '../../composables/useInlineDockResize.js'
+import { useDelayedRender } from '../../composables/useDelayedRender.ts'
+import { useInlineDockResize } from '../../composables/useInlineDockResize.ts'
 import ResizeHandle from './ResizeHandle.vue'
 
 const props = defineProps({

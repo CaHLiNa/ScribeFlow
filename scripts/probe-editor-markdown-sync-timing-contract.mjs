@@ -58,7 +58,7 @@ function createManualScheduler() {
 
 try {
   const { createEditorMarkdownSyncTimingController } =
-    await vite.ssrLoadModule('/src/editor/markdownSyncTiming.js')
+    await vite.ssrLoadModule('/src/editor/markdownSyncTiming.ts')
 
   const scheduler = createManualScheduler()
   const controller = createEditorMarkdownSyncTimingController({ scheduler })

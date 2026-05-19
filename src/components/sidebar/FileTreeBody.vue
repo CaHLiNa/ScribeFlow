@@ -75,7 +75,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from '../../i18n'
 import FileTreeItem from './FileTreeItem.vue'

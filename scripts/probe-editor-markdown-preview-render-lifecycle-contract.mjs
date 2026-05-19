@@ -50,7 +50,7 @@ function createManualScheduler() {
 
 try {
   const { createMarkdownPreviewRenderLifecycle } =
-    await vite.ssrLoadModule('/src/editor/markdownPreviewRenderTiming.js')
+    await vite.ssrLoadModule('/src/editor/markdownPreviewRenderTiming.ts')
 
   const scheduler = createManualScheduler()
   const lifecycle = createMarkdownPreviewRenderLifecycle({ scheduler })

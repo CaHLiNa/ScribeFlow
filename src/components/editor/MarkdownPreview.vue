@@ -27,7 +27,7 @@
   />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, watch, onMounted, onUnmounted, nextTick } from 'vue'
 import { useFilesStore } from '../../stores/files'
 import { useEditorStore } from '../../stores/editor'
@@ -36,20 +36,20 @@ import { useLinksStore } from '../../stores/links'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useI18n } from '../../i18n'
 import { renderPreview } from '../../utils/markdownPreview'
-import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.js'
-import { revealMarkdownSourceLocation } from '../../services/markdown/reveal.js'
-import { resolveMarkdownPreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.js'
+import { openExternalHttpUrl, resolveExternalHttpAnchor } from '../../services/externalLinks.ts'
+import { revealMarkdownSourceLocation } from '../../services/markdown/reveal.ts'
+import { resolveMarkdownPreviewInput } from '../../domains/document/documentWorkspacePreviewAdapters.ts'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
-import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
-import { createMarkdownPreviewRenderLifecycle } from '../../editor/markdownPreviewRenderTiming.js'
-import { createMarkdownRevealLifecycle } from '../../editor/markdownRevealTiming.js'
+import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.ts'
+import { createMarkdownPreviewRenderLifecycle } from '../../editor/markdownPreviewRenderTiming.ts'
+import { createMarkdownRevealLifecycle } from '../../editor/markdownRevealTiming.ts'
 import {
   MARKDOWN_FORWARD_SYNC_EVENT,
   dispatchMarkdownBackwardSync,
   clearPendingMarkdownForwardSync,
   rememberPendingMarkdownForwardSync,
   takePendingMarkdownForwardSync,
-} from '../../services/markdown/previewSync.js'
+} from '../../services/markdown/previewSync.ts'
 
 const props = defineProps({
   filePath: { type: String, required: true },

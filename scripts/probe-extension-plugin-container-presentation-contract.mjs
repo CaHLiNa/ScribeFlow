@@ -1,5 +1,5 @@
 import assert from 'node:assert/strict'
-import { buildExtensionPluginContainerPresentation } from '../src/domains/extensions/extensionPluginContainerPresentation.js'
+import { buildExtensionPluginContainerPresentation } from '../src/domains/extensions/extensionPluginContainerPresentation.ts'
 
 const withBadge = buildExtensionPluginContainerPresentation(
   {

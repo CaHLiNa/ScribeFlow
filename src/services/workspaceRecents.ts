@@ -1,0 +1,78 @@
+import { invokeCommand as invoke } from './tauriBridge.ts'
+import { getGlobalConfigDir as getAppGlobalConfigDir } from './appDirs.ts'
+import { isNativeDesktopRuntime } from './runtimeGuard.ts'
+
+export function createWorkspaceLifecycleState() {
+  return {
+    recentWorkspaces: [],
+    lastWorkspace: '',
+    setupComplete: false,
+    reopenLastWorkspaceOnLaunch: true,
+    reopenLastSessionOnLaunch: true,
+  }
+}
+
+export async function loadWorkspaceLifecycleState(globalConfigDir = '') {
+  if (!isNativeDesktopRuntime()) return createWorkspaceLifecycleState()
+  return invoke('workspace_lifecycle_load', {
+    params: {
+      globalConfigDir,
+    },
+  })
+}
+
+export async function saveWorkspaceLifecycleState(globalConfigDir = '', state = {}) {
+  if (!isNativeDesktopRuntime()) {
+    return {
+      ...createWorkspaceLifecycleState(),
+      ...state,
+    }
+  }
+  const normalized = await invoke('workspace_lifecycle_save', {
+    params: {
+      globalConfigDir,
+      state,
+    },
+  })
+
+  return normalized
+}
+
+export async function getGlobalConfigDir() {
+  return getAppGlobalConfigDir()
+}
+
+export async function prepareWorkspaceOpen(globalConfigDir = '', path = '') {
+  if (!isNativeDesktopRuntime()) {
+    throw new Error('Opening a workspace requires the Tauri desktop runtime.')
+  }
+  return invoke('workspace_lifecycle_prepare_open', {
+    params: {
+      globalConfigDir,
+      path,
+    },
+  })
+}
+
+export async function resolveWorkspaceBootstrapPlan(options = {}) {
+  if (!isNativeDesktopRuntime()) {
+    return { tasks: [], backgroundWindowMs: 0, ...options }
+  }
+  return invoke('workspace_lifecycle_resolve_bootstrap_plan', {
+    params: options,
+  })
+}
+
+export async function loadWorkspaceBootstrapData(params = {}) {
+  if (!isNativeDesktopRuntime()) {
+    throw new Error('Loading workspace bootstrap data requires the Tauri desktop runtime.')
+  }
+  return invoke('workspace_lifecycle_load_bootstrap_data', {
+    params,
+  })
+}
+
+export async function prepareWorkspaceClose() {
+  if (!isNativeDesktopRuntime()) return
+  return invoke('workspace_lifecycle_prepare_close')
+}

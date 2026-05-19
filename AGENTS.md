@@ -25,7 +25,7 @@
 
 ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作台。
 
-目标架构是：Vue 3 frontend、TypeScript bridge、Rust backend/runtime。当前实现仍以 JavaScript + Vue SFC 为主，TypeScript bridge 是明确迁移方向，不是已经完成的现状。
+当前目标架构是：Vue 3 frontend、TypeScript bridge、Rust backend/runtime。`src/` 源码已迁移为 TypeScript + Vue SFC，Rust 仍是 backend/runtime authority。
 
 主要代码边界：
 
@@ -34,10 +34,10 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 - `src/composables`：UI interaction helpers 和可复用 side-effect workflow glue
 - `src/domains`：纯 presentation rules、labels、sorting、deterministic state derivation
 - `src/editor`：CodeMirror/editor runtime helpers、TextMate grammar/theme vendoring
-- `src/services`：当前 JavaScript bridge；目标是 TypeScript Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
+- `src/services`：TypeScript Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
 - `src/stores`：Pinia screen state、orchestration、loading/error lifecycle、service calls
 - `src-tauri/src`：Rust backend/runtime authority
-- `scripts`：boundary guards、runtime probes、bundle guard、release/version helpers
+- `scripts`：Node `.mjs` boundary guards、runtime probes、bundle guard、release/version helpers
 
 `dist/`、`node_modules/`、`src-tauri/target/` 是生成物或依赖目录，不作为产品事实来源。
 
@@ -66,11 +66,11 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 
 当前实现状态：
 
-- `src/` 目前仍以 JavaScript + Vue SFC 为主；不要把所有 frontend code 描述成已经全量 TypeScript 化。
+- `src/` 目前以 TypeScript + Vue SFC 为主；不要再新增 `.js` app 源码。
 - `src/services/tauriBridge.ts` 是唯一 direct Tauri/native plugin bridge authority。
-- 存量 `src/services/**/*.js` 可以作为 feature-specific service wrappers / DTO adapters 存在，但必须通过 `tauriBridge.ts` 触达 native runtime。
-- 新增或大改 native bridge capability 时，优先落在 `tauriBridge.ts` 或 typed `.ts` DTO adapter，并保持显式 command contract、`tsconfig.bridge.json` 和 `npm run verify:bridge` 覆盖。
-- 不能为了迁移 TypeScript，把 Rust authority 下沉到前端，或新增第二套 JS/TS backend center。
+- 存量 `src/services/**/*.ts` 可以作为 feature-specific service wrappers / DTO adapters 存在，但必须通过 `tauriBridge.ts` 触达 native runtime。
+- 新增或大改 native bridge capability 时，优先落在 `tauriBridge.ts` 或 typed DTO adapter，并保持显式 command contract、`tsconfig.bridge.json` / `tsconfig.app.json` 和 `npm run verify:bridge` 覆盖。
+- 不能为了迁移 TypeScript，把 Rust authority 下沉到前端，或新增第二套 frontend backend center。
 
 Rust backend/runtime 负责：
 
@@ -103,7 +103,7 @@ Canonical layer 表：
 | --- | --- |
 | Vue 3 frontend | render product surfaces, receive props, emit user intent, show loading/error/empty states |
 | TypeScript native bridge | `src/services/tauriBridge.ts` owns direct Tauri commands, plugins, native events and app/window/plugin APIs |
-| Service wrappers | existing `src/services/**/*.js` owns feature-specific DTO compatibility and side effects through `tauriBridge.ts` |
+| Service wrappers | `src/services/**/*.ts` owns feature-specific DTO compatibility and side effects through `tauriBridge.ts` |
 | Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
 | Frontend domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
 | Rust backend/runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
@@ -112,7 +112,7 @@ Canonical layer 表：
 
 - `src/components`、`src/stores`、`src/domains`、`src/composables` 不直接 import Tauri API。
 - Tauri `invoke`、Tauri plugin calls、native event bridge 只放在 `src/services/tauriBridge.ts`。
-- `src/services` 可以做 DTO compatibility，但不得成为第二套 backend；JS service wrappers 也受同一限制。
+- `src/services` 可以做 DTO compatibility，但不得成为第二套 backend；TypeScript service wrappers 也受同一限制。
 - Pinia store 不拥有 filesystem、reference merge、LaTeX/Python runtime、plugin host 或 persisted schema policy。
 - `src/domains` 不接触 native bridge、persistence、filesystem、process authority。
 - Rust 返回 normalized result 后，前端再更新 UI state。
@@ -124,20 +124,20 @@ Reference 方向是 Rust-first：
 
 - Rust 拥有 reference truth、snapshot normalization、query/search/filter、mutation outcome、import/export、PDF asset target resolution、citation formatting target lookup、Zotero sync result state。
 - 前端只保留 UI presentation、DTO readers/adapters、service bridge、Pinia coordination、临时 UI state。
-- Reference bridge 迁移目标是 typed TypeScript DTO adapter，不在 JS/TS 里重新实现 Rust query/mutation policy。
-- `src/domains/references/referenceStoreState.js` 只适合 UI state/display helper，不放 canonical policy。
-- `referenceResolvedQueryDto.js` 只适配 Rust DTO 给现有同步 UI/API，不重新实现 Rust query policy。
+- Reference bridge 迁移目标是 typed TypeScript DTO adapter，不在 frontend 里重新实现 Rust query/mutation policy。
+- `src/domains/references/referenceStoreState.ts` 只适合 UI state/display helper，不放 canonical policy。
+- `referenceResolvedQueryDto.ts` 只适配 Rust DTO 给现有同步 UI/API，不重新实现 Rust query policy。
 
 允许：
 
 - `ReferenceDetailPanel.vue` 维护 local draft 并发出 save intent。
-- `src/stores/references.js` 调用 `referenceRuntime` / `references_mutation_apply`，消费 Rust 返回的 snapshot/result。
+- `src/stores/references.ts` 调用 `referenceRuntime` / `references_mutation_apply`，消费 Rust 返回的 snapshot/result。
 - service wrapper 处理 camelCase DTO compatibility。
 
 禁止：
 
 - Vue component 直接写 normalized reference records。
-- JS 重写 duplicate/merge/selection/export target/Zotero result policy。
+- TS 重写 duplicate/merge/selection/export target/Zotero result policy。
 - store 或 service 变成 reference backend。
 
 ## Plugin / Extension 规则
@@ -171,9 +171,9 @@ Editor 不是普通 leaf surface。涉及以下区域时必须单独收口验证
 - `src/components/editor/EditorTextRouteSurface.vue`
 - `src/components/editor/EditorTextWorkspaceSurface.vue`
 - `src/components/editor/PaneContainer.vue`
-- `src/composables/useTextEditorBridges.js`
-- `src/stores/editor.js`
-- `src/services/editorPersistence.js`
+- `src/composables/useTextEditorBridges.ts`
+- `src/stores/editor.ts`
+- `src/services/editorPersistence.ts`
 - `src-tauri/src/editor_session_runtime.rs`
 
 Editor 相关改动必须说明并验证：

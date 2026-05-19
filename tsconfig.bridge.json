@@ -7,10 +7,11 @@
     "strict": true,
     "noEmit": true,
     "isolatedModules": true,
+    "allowImportingTsExtensions": true,
     "resolveJsonModule": true,
     "skipLibCheck": true,
     "lib": ["ES2022", "DOM", "DOM.Iterable"],
     "types": []
   },
-  "include": ["src/services/**/*.ts", "src/**/*.d.ts"]
+  "include": ["src/services/tauriBridge.ts", "src/**/*.d.ts"]
 }

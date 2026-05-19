@@ -60,7 +60,7 @@ function createManualScheduler() {
 
 try {
   const { createEditorContextMenuRestoreController } =
-    await vite.ssrLoadModule('/src/editor/contextMenuRestoreTiming.js')
+    await vite.ssrLoadModule('/src/editor/contextMenuRestoreTiming.ts')
 
   const supersedeScheduler = createManualScheduler()
   const supersedeController = createEditorContextMenuRestoreController({

@@ -26,7 +26,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, toRef } from 'vue'
 import { useWorkspaceStore } from '../../stores/workspace'
 import { useBasename } from '../../composables/useFileMetadata'

@@ -53,7 +53,7 @@ try {
   const {
     notifyExtensionViewSelection,
     resolveExtensionView,
-  } = await vite.ssrLoadModule('/src/services/extensions/extensionViews.js')
+  } = await vite.ssrLoadModule('/src/services/extensions/extensionViews.ts')
 
   await resolveExtensionView({
     globalConfigDir: 42,

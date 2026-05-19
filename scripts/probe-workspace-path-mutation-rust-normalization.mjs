@@ -68,7 +68,7 @@ try {
     duplicateWorkspacePath,
     moveWorkspacePath,
     renameWorkspacePath,
-  } = await vite.ssrLoadModule('/src/services/fileStoreIO.js')
+  } = await vite.ssrLoadModule('/src/services/fileStoreIO.ts')
 
   await createWorkspaceFolder(' /tmp/workspace ', ' folder ')
   await renameWorkspacePath(' /tmp/workspace/old.md ', ' /tmp/workspace/new.md ')

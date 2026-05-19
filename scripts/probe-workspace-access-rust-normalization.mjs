@@ -75,7 +75,7 @@ try {
     captureWorkspaceBookmark,
     releaseWorkspaceBookmark,
     removeWorkspaceBookmark,
-  } = await vite.ssrLoadModule('/src/services/workspacePermissions.js')
+  } = await vite.ssrLoadModule('/src/services/workspacePermissions.ts')
 
   removeWorkspaceBookmark(' /tmp/remove/// ')
   await captureWorkspaceBookmark(' /tmp/capture/// ')

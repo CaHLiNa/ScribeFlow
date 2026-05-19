@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
-import { buildExtensionTargetSummary } from '../src/domains/extensions/extensionTargetPresentation.js'
+import { buildExtensionTargetSummary } from '../src/domains/extensions/extensionTargetPresentation.ts'
 
 const pdfReferenceTarget = buildExtensionTargetSummary({
   kind: 'referencePdf',
@@ -48,7 +48,7 @@ const taskPanelSource = readFileSync(
   'utf8',
 )
 const taskPresentationSource = readFileSync(
-  new URL('../src/domains/extensions/extensionTaskPresentation.js', import.meta.url),
+  new URL('../src/domains/extensions/extensionTaskPresentation.ts', import.meta.url),
   'utf8',
 )
 

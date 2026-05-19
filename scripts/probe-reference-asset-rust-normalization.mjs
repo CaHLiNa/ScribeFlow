@@ -54,7 +54,7 @@ try {
     renameReferencePdfAsset,
     storeReferencePdf,
     storeReferencePdfWithOptions,
-  } = await vite.ssrLoadModule('/src/services/references/referenceAssets.js')
+  } = await vite.ssrLoadModule('/src/services/references/referenceAssets.ts')
 
   await storeReferencePdf(false, 'not-a-reference', 42)
   await storeReferencePdfWithOptions(

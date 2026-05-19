@@ -64,11 +64,11 @@
   </UiModalShell>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref } from 'vue'
 import { useWorkspaceStore } from '../stores/workspace'
 import { useI18n } from '../i18n'
-import { WORKSPACE_THEME_OPTIONS } from '../shared/workspaceThemeOptions.js'
+import { WORKSPACE_THEME_OPTIONS } from '../shared/workspaceThemeOptions.ts'
 import UiButton from './shared/ui/UiButton.vue'
 import UiModalShell from './shared/ui/UiModalShell.vue'
 

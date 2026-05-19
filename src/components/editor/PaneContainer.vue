@@ -52,20 +52,20 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onMounted, onUnmounted, ref, watch } from 'vue'
-import { DOCUMENT_DOCK_PROBLEMS_PAGE } from '../../domains/editor/documentDockPages.js'
+import { DOCUMENT_DOCK_PROBLEMS_PAGE } from '../../domains/editor/documentDockPages.ts'
 import {
   isWorkspaceDocumentPath,
   resolvePaneDockContextPath,
   resolvePaneDocumentTab,
-} from '../../domains/editor/paneDocumentDockRuntime.js'
-import { ROOT_PANE_ID } from '../../domains/editor/paneTreeLayout.js'
+} from '../../domains/editor/paneDocumentDockRuntime.ts'
+import { ROOT_PANE_ID } from '../../domains/editor/paneTreeLayout.ts'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useEditorStore } from '../../stores/editor'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.js'
-import { resolveCachedLatexRootPath } from '../../services/latex/root.js'
+import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.ts'
+import { resolveCachedLatexRootPath } from '../../services/latex/root.ts'
 import { useI18n } from '../../i18n'
 import InlineDockFrame from '../layout/InlineDockFrame.vue'
 import EditorPane from './EditorPane.vue'

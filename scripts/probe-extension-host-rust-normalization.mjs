@@ -64,7 +64,7 @@ try {
     deactivateExtensionHost,
     resolveExtensionHostCall,
     updateExtensionHostSettings,
-  } = await vite.ssrLoadModule('/src/services/extensions/extensionHost.js')
+  } = await vite.ssrLoadModule('/src/services/extensions/extensionHost.ts')
 
   await activateExtensionHost({
     globalConfigDir: 42,

@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
-import { buildExtensionHostDiagnostics } from '../src/domains/extensions/extensionHostDiagnostics.js'
-import { buildExtensionCommandHostState } from '../src/domains/extensions/extensionCommandHostState.js'
+import { buildExtensionHostDiagnostics } from '../src/domains/extensions/extensionHostDiagnostics.ts'
+import { buildExtensionCommandHostState } from '../src/domains/extensions/extensionCommandHostState.ts'
 
 const runtimeEntry = { activated: true }
 

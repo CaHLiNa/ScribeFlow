@@ -46,7 +46,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { openLocalPath } = await vite.ssrLoadModule('/src/services/localFileOpen.js')
+  const { openLocalPath } = await vite.ssrLoadModule('/src/services/localFileOpen.ts')
 
   const openedStringPath = await openLocalPath(' /tmp/scribeflow-open.md ')
   const openedNumericPath = await openLocalPath(42)

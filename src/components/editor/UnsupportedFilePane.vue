@@ -16,7 +16,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed } from 'vue'
 import { useI18n } from '../../i18n'
 import { basenamePath } from '../../utils/path'

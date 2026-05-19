@@ -7,7 +7,7 @@
   </span>
 </template>
 
-<script setup>
+<script setup lang="ts">
 defineProps({
   value: { type: [String, Number], default: '' },
   title: { type: String, default: '' },

@@ -52,7 +52,7 @@ try {
   })
 
   const { resolveDocumentWorkflowAction } = await vite.ssrLoadModule(
-    '/src/services/documentWorkflow/actionRuntimeBridge.js',
+    '/src/services/documentWorkflow/actionRuntimeBridge.ts',
   )
 
   const rawParams = {

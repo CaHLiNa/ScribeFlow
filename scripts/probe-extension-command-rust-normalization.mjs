@@ -53,7 +53,7 @@ try {
   const {
     executeExtensionCommand,
     invokeExtensionCapability,
-  } = await vite.ssrLoadModule('/src/services/extensions/extensionCommands.js')
+  } = await vite.ssrLoadModule('/src/services/extensions/extensionCommands.ts')
 
   await executeExtensionCommand({
     globalConfigDir: 42,

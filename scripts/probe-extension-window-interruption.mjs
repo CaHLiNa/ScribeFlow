@@ -40,8 +40,8 @@ try {
   mockWindows('main')
   mockIPC(() => null, { shouldMockEvents: true })
 
-  const { useExtensionWindowUiStore } = await vite.ssrLoadModule('/src/stores/extensionWindowUi.js')
-  const { listenExtensionHostInterrupted } = await vite.ssrLoadModule('/src/services/extensions/extensionHostEvents.js')
+  const { useExtensionWindowUiStore } = await vite.ssrLoadModule('/src/stores/extensionWindowUi.ts')
+  const { listenExtensionHostInterrupted } = await vite.ssrLoadModule('/src/services/extensions/extensionHostEvents.ts')
 
   const pinia = createPinia()
   setActivePinia(pinia)

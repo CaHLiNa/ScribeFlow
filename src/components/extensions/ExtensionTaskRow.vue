@@ -106,7 +106,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { useI18n, formatRelativeFromNow } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'
 import ExtensionResultPreview from './ExtensionResultPreview.vue'

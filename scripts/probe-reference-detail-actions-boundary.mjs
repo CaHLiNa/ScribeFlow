@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
 const panelSource = await readFile('src/components/panel/ReferenceDetailPanel.vue', 'utf8')
-const actionsSource = await readFile('src/composables/references/useReferenceDetailActions.js', 'utf8')
+const actionsSource = await readFile('src/composables/references/useReferenceDetailActions.ts', 'utf8')
 
 assert.match(
   panelSource,
-  /import \{ useReferenceDetailActions \} from '\.\.\/\.\.\/composables\/references\/useReferenceDetailActions\.js'/,
+  /import \{ useReferenceDetailActions \} from '\.\.\/\.\.\/composables\/references\/useReferenceDetailActions\.ts'/,
   'ReferenceDetailPanel must use the reference detail action workflow composable',
 )
 assert.match(

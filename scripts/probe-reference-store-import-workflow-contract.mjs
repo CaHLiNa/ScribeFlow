@@ -1,7 +1,7 @@
 import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
-const storeSource = await readFile('src/stores/references.js', 'utf8')
+const storeSource = await readFile('src/stores/references.ts', 'utf8')
 
 assert.match(
   storeSource,

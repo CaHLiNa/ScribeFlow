@@ -3,7 +3,7 @@ import {
   buildExtensionTaskPresentation,
   taskGroupPresentation,
   taskTimelinePresentation,
-} from '../src/domains/extensions/extensionTaskPresentation.js'
+} from '../src/domains/extensions/extensionTaskPresentation.ts'
 
 const task = {
   id: 'task-1',

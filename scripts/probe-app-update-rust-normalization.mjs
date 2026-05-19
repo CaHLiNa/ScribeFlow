@@ -82,7 +82,7 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { checkForAppUpdates } = await vite.ssrLoadModule('/src/services/appUpdater.js')
+  const { checkForAppUpdates } = await vite.ssrLoadModule('/src/services/appUpdater.ts')
   const result = await checkForAppUpdates('1.2.3')
 
   assert.strictEqual(result, updateResult)

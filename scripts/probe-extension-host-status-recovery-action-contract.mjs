@@ -44,9 +44,9 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   }, { shouldMockEvents: true })
 
-  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.js')
-  const { useToastStore } = await vite.ssrLoadModule('/src/stores/toast.js')
-  const { useExtensionHostStatusPresentation } = await vite.ssrLoadModule('/src/composables/useExtensionHostStatusPresentation.js')
+  const { useExtensionsStore } = await vite.ssrLoadModule('/src/stores/extensions.ts')
+  const { useToastStore } = await vite.ssrLoadModule('/src/stores/toast.ts')
+  const { useExtensionHostStatusPresentation } = await vite.ssrLoadModule('/src/composables/useExtensionHostStatusPresentation.ts')
 
   const pinia = createPinia()
   setActivePinia(pinia)

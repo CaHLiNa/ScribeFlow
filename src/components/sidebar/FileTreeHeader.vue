@@ -50,7 +50,7 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { IconFolderMinus, IconPlus } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import UiButton from '../shared/ui/UiButton.vue'

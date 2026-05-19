@@ -5,16 +5,16 @@ import { fileURLToPath } from 'node:url'
 const repoRoot = resolve(dirname(fileURLToPath(import.meta.url)), '..')
 const srcRoot = join(repoRoot, 'src')
 
-const sourceExtensions = ['.js', '.vue']
+const sourceExtensions = ['.ts', '.vue']
 const embedPdfImporters = new Set([
   'src/components/editor/PdfEmbedSurface.vue',
   'src/components/editor/PdfEmbedDocumentSurface.vue',
-  'src/components/editor/PdfPreviewEngine.worker.js',
-  'src/services/pdf/embedPdfAdapter.js',
+  'src/components/editor/PdfPreviewEngine.worker.ts',
+  'src/services/pdf/embedPdfAdapter.ts',
 ])
 const pdfiumEngineImporters = new Set([
   'src/components/editor/PdfEmbedSurface.vue',
-  'src/components/editor/PdfPreviewEngine.worker.js',
+  'src/components/editor/PdfPreviewEngine.worker.ts',
 ])
 const pdfSurfaceImporters = new Set([
   'src/components/editor/PdfArtifactPreview.vue',

@@ -187,7 +187,7 @@ try {
   })
 
   const { resolveReferenceQuery, searchReferenceQuery } = await vite.ssrLoadModule(
-    '/src/services/references/referenceRuntime.js',
+    '/src/services/references/referenceRuntime.ts',
   )
 
   const rawParams = {

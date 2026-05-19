@@ -2,11 +2,11 @@ import assert from 'node:assert/strict'
 import { readFile } from 'node:fs/promises'
 
 const fileTreeSource = await readFile('src/components/sidebar/FileTree.vue', 'utf8')
-const actionsSource = await readFile('src/composables/files/useFileTreeActions.js', 'utf8')
+const actionsSource = await readFile('src/composables/files/useFileTreeActions.ts', 'utf8')
 
 assert.match(
   fileTreeSource,
-  /import \{ useFileTreeActions \} from '\.\.\/\.\.\/composables\/files\/useFileTreeActions\.js'/,
+  /import \{ useFileTreeActions \} from '\.\.\/\.\.\/composables\/files\/useFileTreeActions\.ts'/,
   'FileTree.vue must use the file tree action workflow composable',
 )
 assert.match(

@@ -51,7 +51,7 @@ function createManualScheduler() {
 
 try {
   const { createEditorFocusRetryLifecycle } =
-    await vite.ssrLoadModule('/src/editor/editorFocusRetryTiming.js')
+    await vite.ssrLoadModule('/src/editor/editorFocusRetryTiming.ts')
 
   const supersedeScheduler = createManualScheduler()
   const supersedeLifecycle = createEditorFocusRetryLifecycle({
@@ -137,7 +137,7 @@ try {
   const componentSource = await readFile('src/components/panel/OutlinePanel.vue', 'utf8')
   assert.match(
     componentSource,
-    /import \{ createEditorFocusRetryLifecycle \} from '..\/..\/editor\/editorFocusRetryTiming\.js'/,
+    /import \{ createEditorFocusRetryLifecycle \} from '..\/..\/editor\/editorFocusRetryTiming\.ts'/,
     'OutlinePanel must import the shared editor focus retry lifecycle controller'
   )
   assert.match(

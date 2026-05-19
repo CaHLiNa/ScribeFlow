@@ -76,15 +76,15 @@
   </div>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { computed, onUnmounted, ref, watch } from 'vue'
 import { focusEditorRangeWithHighlight } from '../../editor/revealHighlight'
-import { createEditorFocusRetryLifecycle } from '../../editor/editorFocusRetryTiming.js'
+import { createEditorFocusRetryLifecycle } from '../../editor/editorFocusRetryTiming.ts'
 import { useEditorStore } from '../../stores/editor'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
 import { useFilesStore } from '../../stores/files'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { isWorkspaceDocumentPath } from '../../domains/editor/paneDocumentDockRuntime.js'
+import { isWorkspaceDocumentPath } from '../../domains/editor/paneDocumentDockRuntime.ts'
 import { isMarkdown, isLatex, getViewerType, isPreviewPath, previewSourcePathFromPath } from '../../utils/fileTypes'
 import { resolveDocumentOutlineItems } from '../../services/documentOutline/runtime'
 import { useI18n } from '../../i18n'

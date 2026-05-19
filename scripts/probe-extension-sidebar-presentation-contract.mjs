@@ -13,7 +13,7 @@ import {
   resolveExtensionSidebarResultActionKey,
   resolveExtensionSidebarResultActionMessageKey,
   resolveExtensionSidebarViewPresentation,
-} from '../src/domains/extensions/extensionSidebarPresentation.js'
+} from '../src/domains/extensions/extensionSidebarPresentation.ts'
 
 assert.equal(
   extensionSidebarViewKey({ extensionId: ' example-extension ', id: ' tools ' }),

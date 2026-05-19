@@ -87,12 +87,12 @@ try {
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
-  const { useLatexStore } = await vite.ssrLoadModule('/src/stores/latex.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
+  const { useLatexStore } = await vite.ssrLoadModule('/src/stores/latex.ts')
   const {
     loadLatexPreferences,
     saveLatexPreferences,
-  } = await vite.ssrLoadModule('/src/services/latexPreferences.js')
+  } = await vite.ssrLoadModule('/src/services/latexPreferences.ts')
   const pinia = createPinia()
   const workspace = useWorkspaceStore(pinia)
   const latex = useLatexStore(pinia)

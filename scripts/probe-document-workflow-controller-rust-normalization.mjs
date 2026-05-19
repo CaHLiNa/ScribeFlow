@@ -55,7 +55,7 @@ try {
   })
 
   const { executeDocumentWorkflowController } = await vite.ssrLoadModule(
-    '/src/services/documentWorkflow/controllerBridge.js',
+    '/src/services/documentWorkflow/controllerBridge.ts',
   )
 
   const rawParams = {

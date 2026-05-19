@@ -119,7 +119,7 @@
   </template>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { IconChevronLeft } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
 import { humanizeExtensionSettingKey } from '../../domains/extensions/extensionSettingsGroups'

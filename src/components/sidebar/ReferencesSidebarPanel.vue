@@ -159,7 +159,7 @@
   </section>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { nextTick, ref } from 'vue'
 import {
   IconBook2,
@@ -177,10 +177,10 @@ import { useI18n } from '../../i18n'
 import {
   getReferenceSectionLabelKey,
   getReferenceSourceLabelKey,
-} from '../../domains/references/referencePresentation.js'
+} from '../../domains/references/referencePresentation.ts'
 import { useReferencesStore } from '../../stores/references'
 import { useWorkspaceStore } from '../../stores/workspace'
-import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.js'
+import { useSurfaceContextMenu } from '../../composables/useSurfaceContextMenu.ts'
 import SurfaceContextMenu from '../shared/SurfaceContextMenu.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'

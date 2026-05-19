@@ -53,7 +53,7 @@
   />
 </template>
 
-<script setup>
+<script setup lang="ts">
 import {
   ref,
   reactive,
@@ -117,22 +117,22 @@ import {
   getCachedLatexProjectGraph,
   resolveLatexProjectGraph,
 } from '../../services/latex/projectGraph'
-import { resolveLatexReferenceScopePath } from '../../services/latex/root.js'
-import { revealLatexSourceLocation } from '../../services/latex/previewSync.js'
+import { resolveLatexReferenceScopePath } from '../../services/latex/root.ts'
+import { revealLatexSourceLocation } from '../../services/latex/previewSync.ts'
 import {
   MARKDOWN_BACKWARD_SYNC_EVENT,
   dispatchMarkdownForwardSync,
   rememberPendingMarkdownForwardSync,
-} from '../../services/markdown/previewSync.js'
+} from '../../services/markdown/previewSync.ts'
 import {
   LATEX_BACKWARD_SYNC_EVENT,
   dispatchLatexForwardSync,
-} from '../../services/latex/pdfPreviewSync.js'
+} from '../../services/latex/pdfPreviewSync.ts'
 import { basenamePath, dirnamePath } from '../../utils/path'
 import { createFoldingExtension } from '../../editor/foldingRuntime'
-import { createEditorMarkdownSyncTimingController } from '../../editor/markdownSyncTiming.js'
-import { createEditorContextMenuRestoreController } from '../../editor/contextMenuRestoreTiming.js'
-import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.js'
+import { createEditorMarkdownSyncTimingController } from '../../editor/markdownSyncTiming.ts'
+import { createEditorContextMenuRestoreController } from '../../editor/contextMenuRestoreTiming.ts'
+import { createLatexRevealLifecycle } from '../../editor/latexRevealTiming.ts'
 import EditorContextMenu from './EditorContextMenu.vue'
 import CitationPalette from './CitationPalette.vue'
 import { useTextEditorBridges } from '../../composables/useTextEditorBridges'

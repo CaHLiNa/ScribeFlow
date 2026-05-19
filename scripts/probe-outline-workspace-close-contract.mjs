@@ -20,14 +20,14 @@ const vite = await createServer({
 })
 
 try {
-  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.js')
-  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.js')
+  const { useWorkspaceStore } = await vite.ssrLoadModule('/src/stores/workspace.ts')
+  const { useEditorStore } = await vite.ssrLoadModule('/src/stores/editor.ts')
   const {
     isWorkspaceDocumentPath,
     resolveActiveWorkspaceDocumentTab,
     resolvePaneDocumentTab,
-  } = await vite.ssrLoadModule('/src/domains/editor/paneDocumentDockRuntime.js')
-  const { ROOT_PANE_ID } = await vite.ssrLoadModule('/src/domains/editor/paneTreeLayout.js')
+  } = await vite.ssrLoadModule('/src/domains/editor/paneDocumentDockRuntime.ts')
+  const { ROOT_PANE_ID } = await vite.ssrLoadModule('/src/domains/editor/paneTreeLayout.ts')
 
   const pinia = createPinia()
   const workspace = useWorkspaceStore(pinia)

@@ -10,7 +10,7 @@ import {
   buildReferenceStoreInitialState,
   isReferenceDockPdfSelected,
   resolveReferenceCitationUsageKeys,
-} from '../src/domains/references/referenceStoreState.js'
+} from '../src/domains/references/referenceStoreState.ts'
 import {
   buildReferenceQuerySelectionState,
   isReferenceSelectedForDocument,
@@ -19,7 +19,7 @@ import {
   resolveDocumentReferences,
   resolveReferenceByKey,
   resolveReferenceResolvedQueryState,
-} from '../src/domains/references/referenceResolvedQueryDto.js'
+} from '../src/domains/references/referenceResolvedQueryDto.ts'
 
 const collections = [
   { key: 'methods', label: 'Methods' },
@@ -291,13 +291,13 @@ assert.deepEqual(buildReferenceStoreInitialState({
   importInFlight: false,
   availableCitationStylesList: [],
 })
-const storeSource = await readFile('src/stores/references.js', 'utf8')
-const domainSource = await readFile('src/domains/references/referenceStoreState.js', 'utf8')
-const queryDtoSource = await readFile('src/domains/references/referenceResolvedQueryDto.js', 'utf8')
-const libraryIoSource = await readFile('src/services/references/referenceLibraryIO.js', 'utf8')
+const storeSource = await readFile('src/stores/references.ts', 'utf8')
+const domainSource = await readFile('src/domains/references/referenceStoreState.ts', 'utf8')
+const queryDtoSource = await readFile('src/domains/references/referenceResolvedQueryDto.ts', 'utf8')
+const libraryIoSource = await readFile('src/services/references/referenceLibraryIO.ts', 'utf8')
 const backendSource = await readFile('src-tauri/src/references_backend.rs', 'utf8')
 const libSource = await readFile('src-tauri/src/lib.rs', 'utf8')
-const workspaceLifecycleSource = await readFile('src/app/workspace/useWorkspaceLifecycle.js', 'utf8')
+const workspaceLifecycleSource = await readFile('src/app/workspace/useWorkspaceLifecycle.ts', 'utf8')
 const citationPaletteSource = await readFile('src/components/editor/CitationPalette.vue', 'utf8')
 const documentReferencesPanelSource = await readFile('src/components/sidebar/DocumentReferencesPanel.vue', 'utf8')
 const actionSource = (actionName) => {
@@ -309,22 +309,22 @@ const actionSource = (actionName) => {
 
 assert.match(
   storeSource,
-  /from '..\/domains\/references\/referenceStoreState\.js'/,
+  /from '..\/domains\/references\/referenceStoreState\.ts'/,
   'references store must import UI state rules from the reference domain',
 )
 assert.match(
   storeSource,
-  /from '..\/domains\/references\/referenceResolvedQueryDto\.js'/,
+  /from '..\/domains\/references\/referenceResolvedQueryDto\.ts'/,
   'references store must read Rust-returned query DTOs through the explicit DTO reader module',
 )
 assert.match(
   storeSource,
-  /import\s*\{[^}]*resolveReferenceCitationUsageKeys[^}]*\}\s*from '..\/domains\/references\/referenceStoreState\.js'/,
+  /import\s*\{[^}]*resolveReferenceCitationUsageKeys[^}]*\}\s*from '..\/domains\/references\/referenceStoreState\.ts'/,
   'citation usage display helpers must stay with UI state helpers',
 )
 assert.doesNotMatch(
   storeSource,
-  /import\s*\{[^}]*resolveReferenceCitationUsageKeys[^}]*\}\s*from '..\/domains\/references\/referenceResolvedQueryDto\.js'/,
+  /import\s*\{[^}]*resolveReferenceCitationUsageKeys[^}]*\}\s*from '..\/domains\/references\/referenceResolvedQueryDto\.ts'/,
   'referenceResolvedQueryDto must not export UI display helpers',
 )
 assert.doesNotMatch(

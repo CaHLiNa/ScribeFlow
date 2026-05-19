@@ -88,7 +88,7 @@ try {
     loadWorkspaceLifecycleState,
     saveWorkspaceLifecycleState,
     prepareWorkspaceOpen,
-  } = await vite.ssrLoadModule('/src/services/workspaceRecents.js')
+  } = await vite.ssrLoadModule('/src/services/workspaceRecents.ts')
 
   const loaded = await loadWorkspaceLifecycleState(42)
   const saved = await saveWorkspaceLifecycleState(42, 'not-a-state')

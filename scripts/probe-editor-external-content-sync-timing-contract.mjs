@@ -66,7 +66,7 @@ function deferredChange(change) {
 try {
   const {
     createExternalContentSyncController,
-  } = await vite.ssrLoadModule('/src/composables/useTextEditorBridges.js')
+  } = await vite.ssrLoadModule('/src/composables/useTextEditorBridges.ts')
 
   let storeContent = 'hello external'
   const staleView = createFakeView('hello local')

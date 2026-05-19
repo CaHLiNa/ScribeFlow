@@ -74,7 +74,7 @@
   </AppShellFrame>
 </template>
 
-<script setup>
+<script setup lang="ts">
 import { ref, computed, defineAsyncComponent, onMounted, onBeforeUnmount, watch } from 'vue'
 import { useWorkspaceStore } from './stores/workspace'
 import { useFilesStore } from './stores/files'
@@ -95,12 +95,12 @@ import { useI18n } from './i18n'
 import {
   getReferenceSectionLabelKey,
   getReferenceSourceLabelKey,
-} from './domains/references/referencePresentation.js'
+} from './domains/references/referencePresentation.ts'
 import {
   buildSurfaceContext,
 } from './domains/extensions/extensionContributionRegistry'
 import { resolveExtensionTargetContext } from './domains/extensions/extensionTargetContext'
-import { resolvePaneDocumentDockOpen } from './domains/editor/paneDocumentDockRuntime.js'
+import { resolvePaneDocumentDockOpen } from './domains/editor/paneDocumentDockRuntime.ts'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
 import { useAppExtensionRuntimeBridge } from './app/shell/useAppExtensionRuntimeBridge'
@@ -110,7 +110,7 @@ import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
 import { isNewTab, isPdf, isPreviewPath, previewSourcePathFromPath } from './utils/fileTypes'
 import { basenamePath } from './utils/path'
 import { isMac } from './platform'
-import { syncMacosWindowTransparency } from './services/macosWindowTransparency.js'
+import { syncMacosWindowTransparency } from './services/macosWindowTransparency.ts'
 
 const LeftSidebar = defineAsyncComponent(() => import('./components/sidebar/LeftSidebar.vue'))
 const SettingsSidebar = defineAsyncComponent(
