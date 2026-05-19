@@ -235,7 +235,42 @@ select,
 }
 ::-webkit-scrollbar-thumb:hover {
   background-color: color-mix(in srgb, var(--fg-secondary) 70%, transparent);
-  border-width: 3px; /* Hover 时微膨胀 */
+  border-width: 4px;
+}
+
+.cm-scroller,
+.md-preview-container,
+.pdf-artifact-preview__viewport,
+.reference-workbench__content,
+.reference-inspector__scroll,
+.references-sidebar-panel__content,
+.file-tree-scroll,
+.outline-panel-scroll,
+.document-tabs-menu-list {
+  scrollbar-gutter: stable;
+}
+
+body.scribeflow-shell-resizing .cm-scroller,
+body.scribeflow-shell-resizing .md-preview-container,
+body.scribeflow-shell-resizing .file-tree-scroll,
+body.scribeflow-shell-resizing .outline-panel-scroll {
+  -webkit-mask-image: none !important;
+  mask-image: none !important;
+}
+
+body.scribeflow-shell-resizing .workbench-inline-dock-region,
+body.scribeflow-shell-resizing .pdf-artifact-preview__viewport {
+  contain: none !important;
+}
+
+body.scribeflow-shell-resizing .pdf-artifact-preview__toolbar,
+body.scribeflow-shell-resizing .pdf-artifact-preview__toolbar-search,
+body.scribeflow-shell-resizing .pdf-artifact-preview__thumbnails,
+body.scribeflow-shell-resizing .reference-workbench__table-head,
+body.scribeflow-shell-resizing .document-tabs-menu,
+body.scribeflow-shell-resizing .cm-tooltip {
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
 }
 
 /* Hidden scrollbar */

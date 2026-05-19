@@ -114,6 +114,7 @@ try {
   )
 
   const editorCss = await readFile('src/css/editor.css', 'utf8')
+  const globalStyleCss = await readFile('src/style.css', 'utf8')
   const layoutSource = await readFile('src/composables/useAppShellLayout.ts', 'utf8')
   const paneContainerSource = await readFile('src/components/editor/PaneContainer.vue', 'utf8')
   const resizeHandleSource = await readFile('src/components/layout/ResizeHandle.vue', 'utf8')
@@ -189,6 +190,37 @@ try {
     editorCss,
     /body\.scribeflow-shell-resizing \.workbench-inline-dock-region \.inline-dock \*[\s\S]*transition:\s*none !important;[\s\S]*animation:\s*none !important;/,
     'inline dock descendants must not keep independent transitions during live resize',
+  )
+  assert.match(
+    globalStyleCss,
+    /\.cm-scroller,[\s\S]*\.pdf-artifact-preview__viewport,[\s\S]*\.reference-workbench__content,[\s\S]*scrollbar-gutter:\s*stable;/,
+    'resize-sensitive editor, preview, and reference scroll containers must reserve a stable scrollbar gutter',
+  )
+  assert.match(
+    globalStyleCss,
+    /body\.scribeflow-shell-resizing \.cm-scroller,[\s\S]*-webkit-mask-image:\s*none !important;[\s\S]*mask-image:\s*none !important;/,
+    'WebKit mask layers must be disabled while shell resize is active',
+  )
+  assert.match(
+    globalStyleCss,
+    /body\.scribeflow-shell-resizing \.workbench-inline-dock-region,[\s\S]*contain:\s*none !important;/,
+    'paint containment must be released during live resize so the dock and editor repaint in the same frame',
+  )
+  assert.match(
+    globalStyleCss,
+    /body\.scribeflow-shell-resizing \.pdf-artifact-preview__toolbar,[\s\S]*-webkit-backdrop-filter:\s*none !important;[\s\S]*backdrop-filter:\s*none !important;/,
+    'backdrop-filter compositor layers in right dock content must be disabled during live resize',
+  )
+  const scrollbarThumbHoverBlock = cssRuleBlock(globalStyleCss, '::-webkit-scrollbar-thumb:hover')
+  assert.match(
+    scrollbarThumbHoverBlock,
+    /border-width:\s*4px/,
+    'scrollbar thumb hover must keep the same border width to avoid visual rail drift',
+  )
+  assert.doesNotMatch(
+    scrollbarThumbHoverBlock,
+    /border-width:\s*3px/,
+    'scrollbar thumb hover must not expand or shrink the visual rail during resize',
   )
   assert.doesNotMatch(
     resizeHandleSource,
