@@ -1,7 +1,5 @@
 #[cfg(target_os = "macos")]
-use objc2_app_kit::{
-    NSColor, NSTitlebarSeparatorStyle, NSWindow, NSWindowStyleMask, NSWindowTitleVisibility,
-};
+use objc2_app_kit::{NSColor, NSTitlebarSeparatorStyle, NSWindow, NSWindowTitleVisibility};
 use tauri::menu::{AboutMetadata, Menu, MenuItem, SubmenuBuilder};
 #[cfg(target_os = "macos")]
 use tauri::window::Color;
@@ -35,13 +33,12 @@ pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), Str
             30.0 / 255.0,
             1.0,
         );
-        let style_mask = ns_window.styleMask() | NSWindowStyleMask::FullSizeContentView;
-        ns_window.setStyleMask(style_mask);
         ns_window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
         ns_window.setTitlebarAppearsTransparent(true);
         ns_window.setHasShadow(false);
-        // Keep the full-height content view, but keep the backing layer opaque.
-        // A transparent backing layer exposes macOS rounded corners during live resize.
+        // Keep native chrome color handling here, while Tauri config owns the
+        // webview content geometry. Extending content into the titlebar made
+        // live resize repaint timing differ from the right dock grid.
         ns_window.setOpaque(true);
         ns_window.setBackgroundColor(Some(&background));
         ns_window.setTitlebarSeparatorStyle(NSTitlebarSeparatorStyle::None);
