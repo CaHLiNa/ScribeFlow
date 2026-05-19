@@ -1,6 +1,6 @@
 # ScribeFlow Current State
 
-Last updated: 2026-05-18
+Last updated: 2026-05-19
 
 ## Product
 
@@ -211,7 +211,7 @@ Current plugin lifecycle contract:
 - reference export target resolution is now Rust-owned too: BibTeX export and JSON export actions pass the current references snapshot plus `referenceIds`/`referenceId` through the thin `bibtexExport` bridge, while `references_import.rs` performs ordered id filtering, missing-id skip semantics for BibTeX, JSON target validation, and exported-count reporting
 - reference exact-id lookup and presence checks for reference/query surfaces now come from Rust query DTOs: `referenceResolvedQueryDto.js` only reads Rust-returned lookup maps for existing synchronous store APIs; remaining direct id validation is limited to UI affordances such as immediate row selection and PDF dock tab reconciliation
 - reference sidebar/sort selection guards are now Rust-query-owned too: `setSelectedSection()`, `setSelectedSource()`, `setSelectedCollection()`, `setSelectedTag()`, and `setSortKey()` store raw user intent and then let `references_query_resolve` return canonical section/source/collection/tag/sort keys
-- reference resolved-query hydration is now Rust-backed too: `src/stores/references.js` no longer builds a pending/default query DTO in JS; `referenceResolvedQueryDto.js` only accepts Rust-returned query DTOs and maps returned fields back to store selection state
+- reference resolved-query hydration is now Rust-backed too: `src/stores/references.js` no longer builds a pending/default query DTO in JS; `referenceResolvedQueryDto.js` only accepts Rust-returned query DTOs, maps returned fields back to store selection state, and no longer falls back to prior Pinia query state, current selected-reference id, or the first filtered row
 - reference sidebar selection reconciliation no longer pre-validates in JS: `src/stores/references.js` clears mutually exclusive UI filters, sends the raw selected key through the query bridge, and hydrates the normalized query result from Rust
 - reference document-reference mutation derivation is now Rust-owned too: `setDocumentReferenceIds()`, `addDocumentReference()`, and `removeDocumentReference()` pass raw TeX path/reference id intent to `references_mutation_apply`, while Rust handles TeX path normalization, non-array id fallback, valid reference pruning, duplicate guards, next-id-list calculation and `changed` gating before JS commits the returned snapshot
 - reference PDF dock tab state is now domain-derived too: selected-tab checks, open/close/reset state, stale PDF tab pruning, and post-snapshot details fallback decisions live in `referenceStoreState.js`, while `src/stores/references.js` only applies the derived dock state and performs the workspace page switch side effect

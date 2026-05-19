@@ -210,7 +210,6 @@ export const useReferencesStore = defineStore('references', {
       this.selectedReferenceId = builtState?.selectedReferenceId || ''
       this.resolvedQueryState = resolveReferenceResolvedQueryState(
         builtState?.resolvedQueryState,
-        this.$state,
       )
     },
 
@@ -238,8 +237,8 @@ export const useReferencesStore = defineStore('references', {
         fileContents,
       })
 
-      this.resolvedQueryState = resolveReferenceResolvedQueryState(resolved, this.$state)
-      const selection = buildReferenceQuerySelectionState(this.resolvedQueryState, this.$state)
+      this.resolvedQueryState = resolveReferenceResolvedQueryState(resolved)
+      const selection = buildReferenceQuerySelectionState(this.resolvedQueryState)
       this.selectedSectionKey = selection.selectedSectionKey
       this.selectedSourceKey = selection.selectedSourceKey
       this.selectedCollectionKey = selection.selectedCollectionKey

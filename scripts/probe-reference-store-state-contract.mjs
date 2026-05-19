@@ -142,9 +142,9 @@ assert.equal(hasReferenceById(resolvedQueryState, ' ref-2 '), true)
 assert.equal(hasReferenceById(resolvedQueryState, 'hopper2025'), false)
 assert.equal(hasReferenceById('not-object', 'ref-2'), false)
 assert.deepEqual(resolveSelectedReference(resolvedQueryState), references[1])
-assert.deepEqual(resolveSelectedReference({
+assert.equal(resolveSelectedReference({
   filteredReferences: [references[0]],
-}), references[0])
+}), null, 'selected reference must come from the Rust-returned selectedReference DTO, not filtered-row fallback')
 assert.equal(resolveSelectedReference({
   filteredReferences: [],
 }), null)
@@ -244,15 +244,15 @@ assert.equal(buildReferenceDockPdfSnapshotState({
   selectedReferenceId: 'ref-2',
   referenceDockActivePage: 'pdf',
 }).shouldFallbackToDetails, false)
-const fallbackResolvedQueryState = resolveReferenceResolvedQueryState(null, {
+const invalidResolvedQueryState = resolveReferenceResolvedQueryState(null, {
   references,
   selectedReferenceId: 'ref-3',
   sortKey: 'invalid',
 })
-assert.equal(fallbackResolvedQueryState, null)
-assert.deepEqual(resolveReferenceResolvedQueryState(null, {
+assert.equal(invalidResolvedQueryState, null)
+assert.equal(resolveReferenceResolvedQueryState(null, {
   resolvedQueryState,
-}), resolvedQueryState)
+}), null, 'resolved query state must only accept the Rust-returned DTO object')
 
 const explicitResolvedQueryState = {
   selectedReferenceId: 'root-ref',
@@ -266,7 +266,7 @@ const explicitResolvedQueryState = {
   },
 }
 assert.equal(
-  resolveReferenceResolvedQueryState(explicitResolvedQueryState, { references }),
+  resolveReferenceResolvedQueryState(explicitResolvedQueryState),
   explicitResolvedQueryState,
 )
 assert.deepEqual(buildReferenceQuerySelectionState(explicitResolvedQueryState, {
@@ -286,7 +286,7 @@ assert.equal(buildReferenceQuerySelectionState({
 }).selectedReferenceId, 'query-ref')
 assert.equal(buildReferenceQuerySelectionState({}, {
   selectedReferenceId: 'current-ref',
-}).selectedReferenceId, 'current-ref')
+}).selectedReferenceId, '')
 
 assert.deepEqual(buildReferenceStoreInitialState({
   librarySections: sections,
@@ -385,6 +385,11 @@ assert.doesNotMatch(
   /authors|authorLine|citationKey|identifier|pages|haystack|references\.find|references\.some|this\.references|state\.references|buildReferenceSearchIndex|reference_search_text/,
   'referenceResolvedQueryDto must not reconstruct search haystacks or scan canonical reference arrays',
 )
+assert.doesNotMatch(
+  queryDtoSource,
+  /currentState|fallbackState|filteredReferences\s*\[\s*0\s*\]/,
+  'referenceResolvedQueryDto must not fall back to prior Pinia state or filtered-row selection',
+)
 assert.match(
   storeSource,
   /buildReferenceStoreInitialState/,
@@ -473,7 +478,7 @@ assert.doesNotMatch(
 assert.match(
   storeSource,
   /resolveReferenceResolvedQueryState/,
-  'references store must delegate resolved query fallback',
+  'references store must delegate resolved query DTO hydration',
 )
 assert.match(
   storeSource,

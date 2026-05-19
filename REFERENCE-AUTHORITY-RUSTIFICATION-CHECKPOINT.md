@@ -1,6 +1,6 @@
 # Reference Authority Rustification Checkpoint
 
-Snapshot date: 2026-05-18.
+Snapshot date: 2026-05-19.
 
 ## Purpose
 
@@ -71,7 +71,7 @@ should shrink as Rust APIs return complete state:
 
 | Area | Helpers | Exit condition |
 | --- | --- | --- |
-| Query DTO readers | `referenceResolvedQueryDto.js`: `resolveReferenceResolvedQueryState`, `buildReferenceQuerySelectionState`, lookup/search/document-reference readers | Rust query returns the complete resolved-query DTO; JS only accepts returned lookup/search/document-reference DTOs and maps query fields back to store selection state for existing synchronous editor APIs. |
+| Query DTO readers | `referenceResolvedQueryDto.js`: `resolveReferenceResolvedQueryState`, `buildReferenceQuerySelectionState`, lookup/search/document-reference readers | Rust query returns the complete resolved-query DTO; JS only accepts returned lookup/search/document-reference DTOs and maps query fields back to store selection state for existing synchronous editor APIs. It must not fall back to previous Pinia query state, current selected-reference id, or filtered-row selection. |
 | Store bootstrap UI state | `buildReferenceStoreInitialState` | Synchronous JS helper now only returns an empty Pinia UI shell. `references_store_state_build` returns canonical library/source defaults, normalized snapshot fields and initial query DTOs. |
 | Snapshot apply bridge | `applyLibrarySnapshot()` orchestration plus PDF dock UI reconciliation | Raw snapshot normalization and selection/filter hydration now go through `references_store_state_build`; JS keeps only field assignment, loading/error orchestration and PDF dock UI state. |
 | Library snapshot write DTO | None | `references_snapshot_payload_build` now builds and normalizes persisted snapshot payloads from store state in Rust; JS keeps only a thin service call. |
@@ -169,7 +169,9 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 6. Shrink `referenceStoreState.js`
    - Status: query/document-reference lookup/search DTO readers moved to
      `referenceResolvedQueryDto.js`; `referenceStoreState.js` keeps only UI
-     state/display helpers and the initial Pinia UI shell.
+     state/display helpers and the initial Pinia UI shell. The DTO reader no
+     longer falls back to prior Pinia state, current selected-reference id, or
+     the first filtered row when Rust does not return those fields.
    - Remaining: keep shrinking or deleting transitional DTO readers as callers
      move to async Rust query APIs or Rust returns more UI-ready command results.
    - Probes now guard both that `referenceStoreState.js` cannot regain query
@@ -201,9 +203,10 @@ For each migration slice:
   target resolution, PDF import target/result shaping and Zotero
   skipped/success result classification have moved to Rust.
 - Remaining query work is now narrower: selection-id UI affordances and
-  returned-query DTO mapping are explicitly isolated as DTO readers, but should
-  keep shrinking as synchronous editor/citation APIs become Rust-query-backed.
-  Initial store shell is UI-only; canonical defaults and query DTOs now come
-  from `references_store_state_build`.
+  returned-query DTO mapping are explicitly isolated as DTO readers without
+  stale store-state or filtered-row fallback, but should keep shrinking as
+  synchronous editor/citation APIs become Rust-query-backed. Initial store shell
+  is UI-only; canonical defaults and query DTOs now come from
+  `references_store_state_build`.
 - UI dock/sidebar helpers are lower risk and can remain while they stay
   presentation-only.

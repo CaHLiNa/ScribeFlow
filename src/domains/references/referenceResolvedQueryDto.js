@@ -43,15 +43,11 @@ export function hasReferenceById(resolvedQueryState = {}, referenceId = '') {
 export function resolveSelectedReference(
   resolvedQueryState = {},
 ) {
-  return (
-    (resolvedQueryState?.selectedReference &&
-      typeof resolvedQueryState.selectedReference === 'object' &&
-      !Array.isArray(resolvedQueryState.selectedReference)
-      ? resolvedQueryState.selectedReference
-      : null) ||
-    (Array.isArray(resolvedQueryState?.filteredReferences) ? resolvedQueryState.filteredReferences[0] : null) ||
-    null
-  )
+  return resolvedQueryState?.selectedReference &&
+    typeof resolvedQueryState.selectedReference === 'object' &&
+    !Array.isArray(resolvedQueryState.selectedReference)
+    ? resolvedQueryState.selectedReference
+    : null
 }
 
 export function resolveDocumentReferenceByKey(
@@ -105,13 +101,13 @@ export function resolveAvailableDocumentReferences(
   return searchReferences(scopedState, query)
 }
 
-export function resolveReferenceResolvedQueryState(resolved = null, fallbackState = {}) {
+export function resolveReferenceResolvedQueryState(resolved = null) {
   return resolved && typeof resolved === 'object' && !Array.isArray(resolved)
     ? resolved
-    : (fallbackState?.resolvedQueryState || null)
+    : null
 }
 
-export function buildReferenceQuerySelectionState(resolvedQueryState = {}, currentState = {}) {
+export function buildReferenceQuerySelectionState(resolvedQueryState = {}) {
   const query = resolvedQueryState?.query && typeof resolvedQueryState.query === 'object'
     ? resolvedQueryState.query
     : {}
@@ -124,7 +120,6 @@ export function buildReferenceQuerySelectionState(resolvedQueryState = {}, curre
     selectedReferenceId: String(
       resolvedQueryState?.selectedReferenceId ||
       query.selectedReferenceId ||
-      currentState?.selectedReferenceId ||
       ''
     ),
   }
