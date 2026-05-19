@@ -55,6 +55,12 @@ for (const className of [
 }
 
 assert.match(
+  mainStyle,
+  /\.reference-workbench__main\s*\{[\s\S]*flex:\s*1 1 0;/,
+  'ReferenceLibraryMain must use a zero flex basis so detail dock resizing is not driven by list intrinsic width',
+)
+
+assert.match(
   mainSource,
   /import ReferenceLibraryTable from '\.\/ReferenceLibraryTable\.vue'/,
   'ReferenceLibraryMain must own table presentation composition',

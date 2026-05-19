@@ -179,6 +179,17 @@ assert.equal(
 
 const componentSource = await readFile('src/components/layout/WorkbenchRail.vue', 'utf8')
 const titleAreaSource = await readFile('src/components/layout/WorkbenchRailTitleArea.vue', 'utf8')
+
+function scopedStyleBlock(source = '') {
+  return source.match(/<style scoped>[\s\S]*?<\/style>/)?.[0] || ''
+}
+
+function cssRuleBlock(source = '', selector = '') {
+  const escapedSelector = selector.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
+  return source.match(new RegExp(`${escapedSelector}\\s*\\{([\\s\\S]*?)\\}`))?.[1] || ''
+}
+
+const componentStyle = scopedStyleBlock(componentSource)
 assert.match(
   componentSource,
   /from '..\/..\/domains\/workbench\/workbenchRailPresentation\.ts'/,
@@ -193,6 +204,16 @@ assert.match(
   componentSource,
   /v-for="item in workbenchModeItems"/,
   'WorkbenchRail must render the first-class workbench mode switcher from derived mode items',
+)
+assert.doesNotMatch(
+  componentSource,
+  /workbench-mode-tab__label|\{\{\s*item\.label\s*\}\}/,
+  'WorkbenchRail mode switcher must stay icon-only in the top chrome',
+)
+assert.match(
+  cssRuleBlock(componentStyle, '.workbench-mode-tab'),
+  /width:\s*28px/,
+  'WorkbenchRail mode switcher buttons must use stable icon-sized slots',
 )
 assert.match(
   titleAreaSource,

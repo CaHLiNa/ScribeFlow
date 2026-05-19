@@ -14,6 +14,7 @@
   display: flex;
   flex: 1 1 auto;
   flex-direction: column;
+  box-sizing: border-box;
   width: 100%;
   min-width: 0;
   min-height: 0;
@@ -25,6 +26,7 @@
   display: flex;
   align-items: center;
   flex: 0 0 auto;
+  box-sizing: border-box;
   width: 100%;
   min-height: var(--inline-dock-toolbar-height);
   padding: 0 12px;
@@ -148,11 +150,11 @@
 .inline-dock__body {
   display: flex;
   flex: 1 1 auto;
+  box-sizing: border-box;
   width: 100%;
   max-width: 100%;
   min-width: 0;
   min-height: 0;
-  box-sizing: border-box;
   padding: 8px 10px 10px 12px;
   overflow: hidden;
 }
@@ -173,6 +175,7 @@
 
 .workbench-inline-dock-resize-slot {
   flex: 0 0 auto;
+  align-self: stretch;
   position: relative;
   z-index: 6;
   width: 0;
@@ -201,7 +204,10 @@
 
 .workbench-inline-dock-region {
   display: flex;
-  flex: 0 0 auto;
+  flex: 0 0 var(--inline-dock-frame-width, var(--inline-dock-current-width, 0px));
+  box-sizing: border-box;
+  width: var(--inline-dock-frame-width, var(--inline-dock-current-width, 0px));
+  max-width: var(--inline-dock-frame-width, var(--inline-dock-current-width, 0px));
   min-width: 0;
   min-height: 0;
   overflow: hidden;
@@ -218,9 +224,11 @@
 }
 
 .workbench-inline-dock-region > .inline-dock {
-  flex: 0 0 var(--inline-dock-current-width, 100%);
-  width: var(--inline-dock-current-width, 100%);
-  min-width: var(--inline-dock-current-width, 100%);
+  flex: 1 1 auto;
+  box-sizing: border-box;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
   opacity: 1;
   transition:
     opacity var(--inline-dock-fade-duration, 210ms) ease,
@@ -232,6 +240,9 @@
 }
 
 .workbench-inline-dock-region.is-collapsed {
+  flex-basis: 0;
+  width: 0;
+  max-width: 0;
   opacity: 0;
   transform: translateX(10px);
   pointer-events: none;

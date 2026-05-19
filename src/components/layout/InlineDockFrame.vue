@@ -30,8 +30,11 @@
     :aria-hidden="open ? 'false' : 'true'"
     :aria-label="ariaLabel || undefined"
     :style="{
+      '--inline-dock-frame-width': open ? `${width}px` : '0px',
       '--inline-dock-current-width': `${width}px`,
       width: open ? `${width}px` : '0px',
+      flexBasis: open ? `${width}px` : '0px',
+      maxWidth: open ? `${width}px` : '0px',
     }"
   >
     <slot v-if="shouldRenderContent" :motion-active="motionActive" />

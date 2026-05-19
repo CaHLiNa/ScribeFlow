@@ -54,7 +54,6 @@
             :stroke-width="1.75"
             aria-hidden="true"
           />
-          <span class="workbench-mode-tab__label">{{ item.label }}</span>
         </button>
       </div>
     </div>
@@ -378,24 +377,26 @@ onUnmounted(() => {
 .workbench-mode-switcher {
   display: inline-flex;
   align-items: center;
-  gap: 1px;
+  gap: 2px;
+  flex: 0 0 auto;
   min-width: 0;
-  padding: 2px;
-  border: 1px solid color-mix(in srgb, var(--border) 36%, transparent);
+  padding: 0;
+  border: 0;
   border-radius: 7px;
-  background: color-mix(in srgb, var(--surface-raised) 42%, transparent);
+  background: transparent;
 }
 
 .workbench-mode-tab {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  gap: 5px;
-  min-width: 0;
-  height: 24px;
-  padding: 0 8px;
+  flex: 0 0 28px;
+  width: 28px;
+  min-width: 28px;
+  height: 28px;
+  padding: 0;
   border: 0;
-  border-radius: 5px;
+  border-radius: var(--top-chrome-control-radius);
   background: transparent;
   color: color-mix(in srgb, var(--text-secondary) 86%, transparent);
   font: inherit;
@@ -410,39 +411,25 @@ onUnmounted(() => {
 }
 
 .workbench-mode-tab:hover {
-  background: color-mix(in srgb, var(--surface-hover) 54%, transparent);
+  background: color-mix(in srgb, var(--surface-hover) 46%, transparent);
   color: var(--text-primary);
 }
 
 .workbench-mode-tab.is-active {
-  background: var(--list-active-bg);
   color: var(--text-primary);
-}
-
-.workbench-mode-tab__label {
-  min-width: 0;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  background: color-mix(in srgb, var(--surface-hover) 34%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--border) 40%, transparent);
 }
 
 @media (max-width: 920px) {
   .workbench-rail {
     gap: 8px;
   }
-
-  .workbench-mode-tab {
-    padding: 0 6px;
-  }
 }
 
 @media (max-width: 720px) {
   .workbench-rail {
     min-height: 36px;
-  }
-
-  .workbench-mode-tab__label {
-    display: none;
   }
 }
 </style>

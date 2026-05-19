@@ -48,12 +48,8 @@ let sidebarWidthSaveTimer = null
 let viewportResizeFrame = null
 let pendingLeftSidebarWidth = leftSidebarWidth.value
 let pendingRightSidebarWidth = rightSidebarWidth.value
-let pendingDocumentDockWidth = documentDockWidth.value
-let pendingReferenceDockWidth = referenceDockWidth.value
 const LEFT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:left-sidebar-width'
 const RIGHT_SIDEBAR_WIDTH_MOTION_KEY = 'workbench:right-sidebar-width'
-const DOCUMENT_DOCK_WIDTH_MOTION_KEY = 'workbench:document-dock-width'
-const REFERENCE_DOCK_WIDTH_MOTION_KEY = 'workbench:reference-dock-width'
 
 function clamp(value, minimum, maximum) {
   return Math.min(Math.max(value, minimum), maximum)
@@ -311,29 +307,9 @@ function scheduleRightSidebarWidth(value) {
   )
 }
 
-function scheduleDocumentDockWidth(value, containerWidth = window.innerWidth, options = {}) {
-  pendingDocumentDockWidth = value
-  scheduleWorkbenchMotionCommit(
-    DOCUMENT_DOCK_WIDTH_MOTION_KEY,
-    pendingDocumentDockWidth,
-    (nextWidth) => commitDocumentDockWidth(nextWidth, containerWidth, options),
-  )
-}
-
-function scheduleReferenceDockWidth(value, containerWidth = window.innerWidth, options = {}) {
-  pendingReferenceDockWidth = value
-  scheduleWorkbenchMotionCommit(
-    REFERENCE_DOCK_WIDTH_MOTION_KEY,
-    pendingReferenceDockWidth,
-    (nextWidth) => commitReferenceDockWidth(nextWidth, containerWidth, options),
-  )
-}
-
 function flushScheduledSidebarWidths() {
   flushWorkbenchMotionCommit(LEFT_SIDEBAR_WIDTH_MOTION_KEY)
   flushWorkbenchMotionCommit(RIGHT_SIDEBAR_WIDTH_MOTION_KEY)
-  flushWorkbenchMotionCommit(DOCUMENT_DOCK_WIDTH_MOTION_KEY)
-  flushWorkbenchMotionCommit(REFERENCE_DOCK_WIDTH_MOTION_KEY)
 }
 
 function commitSidebarWidthsToViewport() {
@@ -377,12 +353,12 @@ function setRightSidebarWidth(value) {
 }
 
 function setDocumentDockWidth(value, containerWidth = window.innerWidth, options = {}) {
-  scheduleDocumentDockWidth(value, containerWidth, options)
+  commitDocumentDockWidth(value, containerWidth, options)
   documentDockPreSnapWidth.value = null
 }
 
 function setReferenceDockWidth(value, containerWidth = window.innerWidth, options = {}) {
-  scheduleReferenceDockWidth(value, containerWidth, options)
+  commitReferenceDockWidth(value, containerWidth, options)
   referenceDockPreSnapWidth.value = null
 }
 
@@ -495,8 +471,6 @@ export function useAppShellLayout() {
     )
     pendingLeftSidebarWidth = leftSidebarWidth.value
     pendingRightSidebarWidth = rightSidebarWidth.value
-    pendingDocumentDockWidth = documentDockWidth.value
-    pendingReferenceDockWidth = referenceDockWidth.value
 
     window.addEventListener('resize', onWindowResize)
     scheduleViewportSidebarClamp()
