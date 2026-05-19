@@ -1,5 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { invokeCommand as invoke, listenEvent as listen } from '../tauriBridge.ts'
 import { normalizeLatexCompileExecution } from './compileNormalize.js'
 
 export function resolveLatexCompileRequest(params = {}) {

@@ -1,17 +1,21 @@
-import { ask, open, save } from '@tauri-apps/plugin-dialog'
 import { assertNativeDesktopRuntime } from './runtimeGuard.js'
+import {
+  askNativeDialogRaw,
+  openNativeDialogRaw,
+  saveNativeDialogRaw,
+} from './tauriBridge.ts'
 
 export function openNativeDialog(options = {}) {
   assertNativeDesktopRuntime('Opening a native dialog')
-  return open(options)
+  return openNativeDialogRaw(options)
 }
 
 export function saveNativeDialog(options = {}) {
   assertNativeDesktopRuntime('Saving with a native dialog')
-  return save(options)
+  return saveNativeDialogRaw(options)
 }
 
 export function askNativeDialog(message, options = {}) {
   assertNativeDesktopRuntime('Showing a native dialog')
-  return ask(message, options)
+  return askNativeDialogRaw(message, options)
 }

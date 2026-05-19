@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 import { locale } from '../../i18n'
 
 export async function listExtensions(globalConfigDir = '', workspaceRoot = '') {

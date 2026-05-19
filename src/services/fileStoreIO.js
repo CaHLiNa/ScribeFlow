@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from './tauriBridge.ts'
 
 export async function readWorkspaceTextFile(path, maxBytes) {
   return invoke('workspace_read_text_file', {

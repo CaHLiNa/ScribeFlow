@@ -1,4 +1,4 @@
-import { listen } from '@tauri-apps/api/event'
+import { listenEvent as listen } from '../tauriBridge.ts'
 
 export function listenExtensionViewChanged(handler) {
   return listen('extension-view-changed', handler)

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function normalizeLatexCompileResult(result = {}) {
   return invoke('latex_compile_result_normalize', {

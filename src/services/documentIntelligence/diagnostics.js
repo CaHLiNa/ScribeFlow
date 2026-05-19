@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function normalizeProblem(problem = {}, defaults = {}) {
   const result = await invoke('diagnostics_normalize_problems', {

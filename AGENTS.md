@@ -66,9 +66,10 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 
 当前实现状态：
 
-- `src/` 目前仍以 JavaScript + Vue SFC 为主；不要把现有 JS bridge 描述成已经迁移完成的 TypeScript bridge。
-- 存量 `src/services/**/*.js` 是过渡 bridge 层，仍必须遵守 bridge 边界。
-- 新增或大改 bridge 模块时，优先向 `.ts`、typed DTO 和显式 command contract 收敛；如果项目尚未具备 TypeScript build/typecheck gate，迁移任务必须同时补齐 `tsconfig`、Vite 处理和验证脚本。
+- `src/` 目前仍以 JavaScript + Vue SFC 为主；不要把所有 frontend code 描述成已经全量 TypeScript 化。
+- `src/services/tauriBridge.ts` 是唯一 direct Tauri/native plugin bridge authority。
+- 存量 `src/services/**/*.js` 可以作为 feature-specific service wrappers / DTO adapters 存在，但必须通过 `tauriBridge.ts` 触达 native runtime。
+- 新增或大改 native bridge capability 时，优先落在 `tauriBridge.ts` 或 typed `.ts` DTO adapter，并保持显式 command contract、`tsconfig.bridge.json` 和 `npm run verify:bridge` 覆盖。
 - 不能为了迁移 TypeScript，把 Rust authority 下沉到前端，或新增第二套 JS/TS backend center。
 
 Rust backend/runtime 负责：
@@ -101,8 +102,8 @@ Canonical layer 表：
 | Layer | 责任 |
 | --- | --- |
 | Vue 3 frontend | render product surfaces, receive props, emit user intent, show loading/error/empty states |
-| TypeScript bridge target | `src/services` should evolve toward typed Tauri commands, plugins, native events and DTO compatibility |
-| Current JS bridge | existing `src/services/**/*.js` keeps the same bridge-only boundary until migrated |
+| TypeScript native bridge | `src/services/tauriBridge.ts` owns direct Tauri commands, plugins, native events and app/window/plugin APIs |
+| Service wrappers | existing `src/services/**/*.js` owns feature-specific DTO compatibility and side effects through `tauriBridge.ts` |
 | Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
 | Frontend domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
 | Rust backend/runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
@@ -110,8 +111,8 @@ Canonical layer 表：
 硬规则：
 
 - `src/components`、`src/stores`、`src/domains`、`src/composables` 不直接 import Tauri API。
-- Tauri `invoke`、Tauri plugin calls、native event bridge 只放在 `src/services`；目标形态是 typed TypeScript bridge。
-- `src/services` 可以做 DTO compatibility，但不得成为第二套 backend；当前 JS bridge 也受同一限制。
+- Tauri `invoke`、Tauri plugin calls、native event bridge 只放在 `src/services/tauriBridge.ts`。
+- `src/services` 可以做 DTO compatibility，但不得成为第二套 backend；JS service wrappers 也受同一限制。
 - Pinia store 不拥有 filesystem、reference merge、LaTeX/Python runtime、plugin host 或 persisted schema policy。
 - `src/domains` 不接触 native bridge、persistence、filesystem、process authority。
 - Rust 返回 normalized result 后，前端再更新 UI state。
@@ -219,7 +220,6 @@ npm run verify
 它包含：
 
 - `npm run verify:quick`
-- `npm run verify:extensions`
 - `npm run verify:bridge`
 - `npm run verify:build`
 - `npm run verify:rust`

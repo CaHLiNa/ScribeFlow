@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function listExtensionTasks(workspaceRoot = '') {
   return invoke('extension_task_list', {

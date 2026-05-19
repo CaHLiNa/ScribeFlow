@@ -1,12 +1,11 @@
-import { getVersion } from '@tauri-apps/api/app'
 import { openExternalHttpUrl } from './externalLinks.js'
-import { invokeCommand, listenToNativeEvent } from './tauriBridge.ts'
+import { getRuntimeVersion, invokeCommand, listenToNativeEvent } from './tauriBridge.ts'
 const RELEASES_URL = 'https://github.com/CaHLiNa/ScribeFlow/releases'
 const RELEASES_LATEST_API_URL = 'https://api.github.com/repos/CaHLiNa/ScribeFlow/releases/latest'
 
 export async function getAppVersion() {
   try {
-    return await getVersion()
+    return await getRuntimeVersion()
   } catch {
     return '0.0.0'
   }

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function parseBibTeXText(content = '') {
   return invoke('references_import_parse_text', {

@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function normalizeReferenceLibrarySnapshotWithBackend(snapshot = {}) {
   return invoke('references_snapshot_normalize', {

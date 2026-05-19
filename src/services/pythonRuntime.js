@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from './tauriBridge.ts'
 
 export async function detectPythonRuntime() {
   return invoke('python_runtime_detect')

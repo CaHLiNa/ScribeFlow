@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function openExtensionArtifact(artifact = {}) {
   return invoke('extension_artifact_open', {

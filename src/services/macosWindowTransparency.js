@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from './tauriBridge.ts'
 import { detectTauriDesktopRuntime, isMac } from '../platform'
 
 export function syncMacosWindowTransparency() {

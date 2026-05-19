@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function buildResolvedMarkdownDraftProblemsKey(request = {}) {
   return invoke('document_workflow_build_resolved_state_key', { kind: 'markdown', request })

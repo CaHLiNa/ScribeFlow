@@ -1,5 +1,5 @@
-import { invoke } from '@tauri-apps/api/core'
 import { isNativeDesktopRuntime } from './runtimeGuard.js'
+import { invokeCommand as invoke, openShellUrl } from './tauriBridge.ts'
 
 const EXTERNAL_HTTP_PROTOCOLS = new Set(['http:', 'https:'])
 
@@ -51,7 +51,6 @@ export function resolveExternalHttpAnchor(target, base = undefined) {
 export async function openExternalHttpUrl(url, base = undefined) {
   const normalized = await resolveExternalHttpUrl(url, base)
   if (!normalized) return false
-  const { open } = await import('@tauri-apps/plugin-shell')
-  await open(normalized)
+  await openShellUrl(normalized)
   return true
 }

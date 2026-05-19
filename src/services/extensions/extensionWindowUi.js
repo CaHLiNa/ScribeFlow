@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function respondExtensionWindowUiRequest(payload = {}) {
   return invoke('extension_host_respond_ui_request', {

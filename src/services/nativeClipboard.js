@@ -1,12 +1,12 @@
 import {
-  readText as readClipboardText,
-  writeText as writeClipboardText,
-} from '@tauri-apps/plugin-clipboard-manager'
+  readNativeClipboardTextRaw,
+  writeNativeClipboardTextRaw,
+} from './tauriBridge.ts'
 
 export function readNativeClipboardText() {
-  return readClipboardText()
+  return readNativeClipboardTextRaw()
 }
 
 export function writeNativeClipboardText(text = '') {
-  return writeClipboardText(String(text || ''))
+  return writeNativeClipboardTextRaw(String(text || ''))
 }

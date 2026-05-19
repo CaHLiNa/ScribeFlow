@@ -47,16 +47,19 @@ ScribeFlow 是一个 local-first 的 Tauri 桌面学术写作与研究工作台�
 当前实现状态：
 
 - frontend 已是 Vue 3 + Pinia + Vite，但大部分 frontend/source bridge 仍是 JavaScript。
-- TypeScript bridge 迁移已开始：`src/services/tauriBridge.ts` 是第一条 typed Tauri invoke/event bridge，`appUpdater.js` 已通过它调用 app-update Tauri commands 和 native progress event。
+- TypeScript native bridge authority 迁移已完成：direct `@tauri-apps/*` imports 只允许出现在 `src/services/tauriBridge.ts`。
+- `src/services/tauriBridge.ts` 统一封装 Tauri `invoke`、native events、app version、clipboard、dialog、shell 和 window APIs。
+- 存量 `src/services/**/*.js` 仍可作为 feature-specific service wrappers / DTO adapters 存在，但它们只能通过 `tauriBridge.ts` 触达 native runtime，不能直接 import Tauri 或 plugins。
+- `appUpdater.js`、filesystem/workspace/reference/extension/LaTeX/Python 等 service wrappers 已从 direct `invoke/listen` 切到 TypeScript bridge entrypoint。
 - `tsconfig.bridge.json` 和 `npm run verify:bridge` 已加入工程 gate；标准 `npm run verify` 会运行 bridge typecheck。
 - boundary guards 已开始覆盖 `.ts` 文件，使后续 TypeScript 迁移仍受 UI bridge / JS-layer boundary 约束。
-- 后续迁移应优先把 `src/services` 中的 Tauri command wrappers、plugin/native event bridges 和 DTO adapters 迁到 `.ts`；Vue components、Pinia stores 和 frontend domains 不直接接触 Tauri API。
+- 后续如果继续强类型化，可逐步把 JS service wrappers / DTO adapters 改成 `.ts`；这属于 typing hardening，不再是 native bridge authority 迁移的 blocker。
 
 - `src/app`：desktop lifecycle 和 shell orchestration
 - `src/components`：Vue UI surfaces
 - `src/composables`：UI composition 和 interaction helpers
 - `src/domains`：frontend pure rules 和 state transitions
-- `src/services`：当前 JavaScript bridge + 正在迁移的 TypeScript bridge，目标是 typed Tauri bridge 和 side-effect boundary
+- `src/services`：TypeScript native bridge entrypoint + feature-specific service wrappers / DTO adapters
 - `src/stores`：Pinia coordination state
 - `src-tauri/src`：Rust backend/runtime authority，负责 filesystem、workspace access、sessions、preferences、references、LaTeX、Python、extensions 和 updates
 
@@ -65,8 +68,8 @@ Canonical layer 表：
 | Layer | Responsibility |
 | --- | --- |
 | Vue 3 frontend | 渲染 product surfaces，接收 props，发出 user intent，展示 loading/error/empty states |
-| TypeScript bridge target | `src/services` 向 typed Tauri commands、plugins、native events 和 DTO compatibility 收敛 |
-| Current JS bridge | 存量 `src/services/**/*.js` 在迁移前保持 bridge-only boundary |
+| TypeScript native bridge | `src/services/tauriBridge.ts` owns direct Tauri commands, plugins, native events and app/window/plugin APIs |
+| Service wrappers | 存量 `src/services/**/*.js` owns feature-specific DTO compatibility and side effects through `tauriBridge.ts` |
 | Pinia coordination | `src/stores` 拥有 screen state、orchestration、loading/error lifecycle 和 service calls |
 | Frontend domains | `src/domains` 拥有 pure presentation rules、labels、sorting 和 deterministic state derivation |
 | Rust backend/runtime | `src-tauri/src` 拥有 filesystem、workspace state、references、runtime execution、persistence、plugins 和 security |
@@ -74,12 +77,12 @@ Canonical layer 表：
 边界规则：
 
 - Vue components、stores、domains 和 composables 不直接 import Tauri APIs。
-- Tauri `invoke`、Tauri plugin calls 和 event bridges 只属于 `src/services`；目标形态是 typed TypeScript bridge。
+- Tauri `invoke`、Tauri plugin calls 和 event bridges 只属于 `src/services/tauriBridge.ts`。
 - Rust 拥有 filesystem authority、persisted app state、reference normalization、compile/runtime execution 和 workspace-scoped security checks。
 - Rust 拥有 plugin discovery、manifest validation、plugin host startup、command execution、task state 和 artifact access。
 - Rust manifest validation 强制常规 plugins 的 single-container right-sidebar contract。
 - Vue 拥有 plugin prompt rendering、plugin sidebar rendering、command palette integration，以及通过 `src/services` bridge 进行的 runtime event presentation。
-- 前端保持为 thin bridge 和 UI coordination layer，而不是第二套 backend；TypeScript 迁移不能接管 Rust-owned policy。
+- 前端保持为 thin bridge 和 UI coordination layer，而不是第二套 backend；TypeScript bridge 不能接管 Rust-owned policy。
 - `src/domains` 不得获得 native bridge、persistence、filesystem 或 process authority；任何剩余 cleanup debt 都应在 code-adjacent tasks 中追踪，而不是放在 stale planning documents 里。
 - Tauri command payload shape 变化必须在同一 commit 中更新 Rust command handling、TypeScript/JS bridge DTO mapping、store call sites 和 regression verification。
 - Editor core changes 必须进入独立的 editor-specific phase；global module cleanup 不得改变 cursor、selection、reveal、scroll、CodeMirror behavior、editor session payloads 或 editor event timing。
@@ -252,7 +255,6 @@ npm run verify
 它会运行：
 
 - `npm run verify:quick`
-- `npm run verify:extensions`
 - `npm run verify:bridge`
 - `npm run verify:build`
 - `npm run verify:rust`

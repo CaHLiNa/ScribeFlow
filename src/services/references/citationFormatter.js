@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 async function formatFromReference(style = 'apa', mode = 'reference', reference = {}, number, workspacePath = '') {
   return invoke('references_citation_render', {

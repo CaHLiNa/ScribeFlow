@@ -1,4 +1,4 @@
-import { emit, listen } from '@tauri-apps/api/event'
+import { emitEvent as emit, listenEvent as listen } from './tauriBridge.ts'
 
 export const TRANSIENT_OVERLAY_DISMISS_EVENT = 'app:transient-overlay-dismiss'
 

@@ -1,22 +1,27 @@
-import { LogicalSize } from '@tauri-apps/api/dpi'
-import { getCurrentWindow } from '@tauri-apps/api/window'
+import {
+  isCurrentWindowFullscreen,
+  onCurrentWindowFocusChanged,
+  onCurrentWindowResized,
+  setCurrentWindowMinSize,
+  startCurrentWindowDrag,
+} from './tauriBridge.ts'
 
 export function applyNativeWindowMinSize(width, height) {
-  return getCurrentWindow().setMinSize(new LogicalSize(width, height))
+  return setCurrentWindowMinSize(width, height)
 }
 
 export function isNativeWindowFullscreen() {
-  return getCurrentWindow().isFullscreen()
+  return isCurrentWindowFullscreen()
 }
 
 export function startNativeWindowDrag() {
-  return getCurrentWindow().startDragging()
+  return startCurrentWindowDrag()
 }
 
 export function onNativeWindowFocusChanged(handler) {
-  return getCurrentWindow().onFocusChanged(handler)
+  return onCurrentWindowFocusChanged(handler)
 }
 
 export function onNativeWindowResized(handler) {
-  return getCurrentWindow().onResized(handler)
+  return onCurrentWindowResized(handler)
 }

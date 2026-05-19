@@ -1,5 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
+import { invokeCommand as invoke, listenEvent as listen } from './tauriBridge.ts'
 
 export function loadWorkspaceTreeState(params = {}) {
   return invoke('fs_tree_load_workspace_state', {

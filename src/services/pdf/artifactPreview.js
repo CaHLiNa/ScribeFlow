@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from '../tauriBridge.ts'
 
 export async function readPdfArtifactBase64(filePath) {
   return invoke('workspace_read_file_base64', {

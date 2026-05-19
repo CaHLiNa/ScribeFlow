@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from './tauriBridge.ts'
 
 export async function classify(path) {
   return invoke('file_types_classify', { params: { path } })

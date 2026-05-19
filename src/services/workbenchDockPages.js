@@ -1,4 +1,4 @@
-import { invoke } from '@tauri-apps/api/core'
+import { invokeCommand as invoke } from './tauriBridge.ts'
 import { isNativeDesktopRuntime } from './runtimeGuard.js'
 
 const EMPTY_DOCK_PAGE_CONTRACT = Object.freeze({
