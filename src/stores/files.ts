@@ -178,6 +178,7 @@ export const useFilesStore = defineStore('files', {
       lastCompletedAt: 0,
       lastError: '',
     },
+    nativeWatcherLastError: '',
   }),
 
   getters: {
@@ -341,6 +342,7 @@ export const useFilesStore = defineStore('files', {
       try {
         await startWorkspaceTreeWatch(workspacePath)
         this._nativeWatcherActive = true
+        this.nativeWatcherLastError = ''
         this._nativeWatcherUnlisten = await listenWorkspaceTreeRefreshRequests((event) => {
           const payload = event.payload || {}
           const activeWorkspacePath = useWorkspaceStore().path
@@ -361,7 +363,7 @@ export const useFilesStore = defineStore('files', {
       } catch (error) {
         this._nativeWatcherUnlisten = null
         this._nativeWatcherActive = false
-        console.warn('[file-tree] native workspace watcher unavailable:', error)
+        this.nativeWatcherLastError = String(error?.message || error || '')
       }
     },
 
@@ -686,12 +688,18 @@ export const useFilesStore = defineStore('files', {
     },
 
     async startWatching() {
-      this._teardownNativeWatcher()
-      this._teardownActivityHooks()
-      this._setupActivityHooks()
-      await this._setupNativeWatcher()
-      this._notifyTreeVisibility(typeof document === 'undefined' || document.visibilityState === 'visible')
-      this.noteTreeActivity()
+      try {
+        this._teardownNativeWatcher()
+        this._teardownActivityHooks()
+        this._setupActivityHooks()
+        await this._setupNativeWatcher()
+        this._notifyTreeVisibility(typeof document === 'undefined' || document.visibilityState === 'visible')
+        this.noteTreeActivity()
+      } catch (error) {
+        this._nativeWatcherUnlisten = null
+        this._nativeWatcherActive = false
+        this.nativeWatcherLastError = String(error?.message || error || '')
+      }
     },
 
     async toggleDir(path) {

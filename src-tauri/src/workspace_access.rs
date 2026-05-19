@@ -198,6 +198,19 @@ fn move_workspace_bookmark(
     write_workspace_bookmarks(&bookmarks)
 }
 
+fn remove_workspace_bookmark_for_path(path: &str) -> Result<(), String> {
+    let mut bookmarks = read_workspace_bookmarks()?;
+    bookmarks.bookmarks.remove(&normalize_workspace_path(path));
+    write_workspace_bookmarks(&bookmarks)
+}
+
+fn is_recoverable_bookmark_activation_error(error: &str) -> bool {
+    let normalized = error.to_ascii_lowercase();
+    normalized.contains("invalid workspace bookmark")
+        || normalized.contains("correct format")
+        || normalized.contains("failed to resolve workspace path from bookmark")
+}
+
 #[cfg(target_os = "macos")]
 fn ns_error_to_string(error: &NSError) -> String {
     error.localizedDescription().to_string()
@@ -356,7 +369,17 @@ pub fn macos_activate_workspace_bookmark_for_path_typed(
         });
     };
 
-    let activated = macos_activate_workspace_bookmark(bookmark.clone(), state)?;
+    let activated = match macos_activate_workspace_bookmark(bookmark.clone(), state) {
+        Ok(activated) => activated,
+        Err(error) if is_recoverable_bookmark_activation_error(&error) => {
+            remove_workspace_bookmark_for_path(&normalized_path)?;
+            return Ok(ActivatedWorkspaceBookmark {
+                path: normalized_path,
+                bookmark: None,
+            });
+        }
+        Err(error) => return Err(error),
+    };
     let refreshed_bookmark = activated.bookmark.clone().unwrap_or(bookmark);
     move_workspace_bookmark(&normalized_path, &activated.path, &refreshed_bookmark)?;
     Ok(activated)
@@ -432,8 +455,8 @@ pub fn workspace_bookmark_remove(params: Value) -> Result<(), String> {
 #[cfg(test)]
 mod tests {
     use super::{
-        normalize_bookmark_map, normalize_workspace_path, workspace_access_path_from_payload,
-        workspace_bookmark_activate_params_from_payload,
+        is_recoverable_bookmark_activation_error, normalize_bookmark_map, normalize_workspace_path,
+        workspace_access_path_from_payload, workspace_bookmark_activate_params_from_payload,
         workspace_bookmark_capture_params_from_payload,
         workspace_bookmark_remove_params_from_payload, WorkspaceBookmarkFile,
         WORKSPACE_BOOKMARKS_VERSION,
@@ -485,5 +508,21 @@ mod tests {
             " /tmp/release-me/ "
         );
         assert_eq!(workspace_access_path_from_payload(json!(false)), "");
+    }
+
+    #[test]
+    fn classifies_recoverable_bookmark_activation_errors() {
+        assert!(is_recoverable_bookmark_activation_error(
+            "Invalid workspace bookmark"
+        ));
+        assert!(is_recoverable_bookmark_activation_error(
+            "The file couldn’t be opened because it isn’t in the correct format."
+        ));
+        assert!(is_recoverable_bookmark_activation_error(
+            "Failed to resolve workspace path from bookmark"
+        ));
+        assert!(!is_recoverable_bookmark_activation_error(
+            "Failed to access workspace permission for /tmp/workspace"
+        ));
     }
 }

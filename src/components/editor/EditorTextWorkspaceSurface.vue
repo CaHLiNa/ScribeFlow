@@ -4,7 +4,6 @@
       <component
         :is="TextEditor"
         :key="`text:${filePath}`"
-        class="flex-1 min-w-0 h-full"
         :filePath="filePath"
         :paneId="paneId"
         :read-only="readOnly"
@@ -49,5 +48,10 @@ defineExpose({
   min-width: 0;
   min-height: 0;
   background: var(--shell-editor-surface);
+}
+
+.editor-pane-text-surface :deep(.text-editor-shell) {
+  flex: 1 1 auto;
+  min-width: 0;
 }
 </style>
