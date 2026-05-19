@@ -71,36 +71,6 @@ export function isReferenceSelectedForDocument(
   ))
 }
 
-export function searchReferences(resolvedQueryState = {}, query = '') {
-  const normalizedQuery = String(query || '').trim().toLowerCase()
-  const referenceList = Array.isArray(resolvedQueryState?.sortedReferences)
-    ? resolvedQueryState.sortedReferences
-    : []
-  if (!normalizedQuery) return referenceList
-  const searchIndex = resolvedQueryState?.referenceSearchIndex
-  if (!searchIndex || typeof searchIndex !== 'object' || Array.isArray(searchIndex)) return []
-
-  return referenceList.filter((reference) => {
-    const searchText = String(searchIndex?.[String(reference?.id || '')] || '')
-    return searchText.includes(normalizedQuery)
-  })
-}
-
-export function resolveAvailableDocumentReferences(
-  resolvedQueryState = {},
-  texPath = '',
-  query = '',
-) {
-  const entry = resolveDocumentReferenceEntry(resolvedQueryState, texPath)
-  const scopedState = {
-    sortedReferences: Array.isArray(entry.availableReferences)
-      ? entry.availableReferences
-      : [],
-    referenceSearchIndex: entry.referenceSearchIndex || {},
-  }
-  return searchReferences(scopedState, query)
-}
-
 export function resolveReferenceResolvedQueryState(resolved = null) {
   return resolved && typeof resolved === 'object' && !Array.isArray(resolved)
     ? resolved

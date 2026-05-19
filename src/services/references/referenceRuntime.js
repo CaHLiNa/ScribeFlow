@@ -12,6 +12,12 @@ export function resolveReferenceQuery(params = {}) {
   })
 }
 
+export function searchReferenceQuery(params = {}) {
+  return invoke('references_query_search', {
+    params,
+  })
+}
+
 export function scanWorkspaceCitationStyles(workspacePath = '') {
   return invoke('references_scan_workspace_styles', {
     params: {

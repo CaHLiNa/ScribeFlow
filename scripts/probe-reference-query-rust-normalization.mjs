@@ -74,6 +74,16 @@ function buildReferenceSearchIndex(references = []) {
   }, {})
 }
 
+function searchReferences(references = [], query = '') {
+  const normalizedQuery = String(query || '').trim().toLowerCase()
+  if (!normalizedQuery) return references
+  const searchIndex = buildReferenceSearchIndex(references)
+  return references.filter((reference) => {
+    const id = normalizeString(reference?.id)
+    return String(searchIndex[id] || '').includes(normalizedQuery)
+  })
+}
+
 try {
   const { mockIPC, mockWindows, clearMocks } = await import('@tauri-apps/api/mocks')
   clearTauriMocks = clearMocks
@@ -144,10 +154,38 @@ try {
       }
     }
 
+    if (cmd === 'references_query_search') {
+      const params = args?.params && typeof args.params === 'object' ? args.params : {}
+      const references = normalizeArray(params.references)
+      const documentReferenceSelections =
+        params.documentReferenceSelections &&
+        typeof params.documentReferenceSelections === 'object' &&
+        !Array.isArray(params.documentReferenceSelections)
+          ? params.documentReferenceSelections
+          : {}
+      const texPath = normalizeString(params.texPath).trim()
+      const selectedIds = Array.isArray(documentReferenceSelections[texPath])
+        ? documentReferenceSelections[texPath].map((id) => String(id || '').trim()).filter(Boolean)
+        : []
+      const selectedIdSet = new Set(selectedIds)
+      const documentReferences = references.filter((reference) => selectedIdSet.has(reference.id))
+      const availableReferences = references.filter((reference) => !selectedIdSet.has(reference.id))
+      return {
+        query: normalizeString(params.query).trim(),
+        normalizedQuery: normalizeString(params.query).trim().toLowerCase(),
+        sortKey: normalizeString(params.sortKey) || 'year-desc',
+        texPath,
+        documentReferenceIds: selectedIds,
+        references: searchReferences(references, params.query),
+        documentReferences: searchReferences(documentReferences, params.query),
+        availableReferences: searchReferences(availableReferences, params.query),
+      }
+    }
+
     throw new Error(`Unexpected IPC command: ${cmd}`)
   })
 
-  const { resolveReferenceQuery } = await vite.ssrLoadModule(
+  const { resolveReferenceQuery, searchReferenceQuery } = await vite.ssrLoadModule(
     '/src/services/references/referenceRuntime.js',
   )
 
@@ -192,6 +230,26 @@ try {
   const defaultResult = await resolveReferenceQuery(null)
   assert.equal(calls[1].args.params, null)
   assert.deepEqual(defaultResult.filteredReferences, [])
+
+  const searchParams = {
+    references: rawParams.references,
+    documentReferenceSelections: {
+      'paper.tex': ['ref-a'],
+    },
+    texPath: ' paper.tex ',
+    query: 'beta',
+    sortKey: 'title-asc',
+  }
+  const searchResult = await searchReferenceQuery(searchParams)
+  assert.deepEqual(calls.map((call) => call.cmd), [
+    'references_query_resolve',
+    'references_query_resolve',
+    'references_query_search',
+  ])
+  assert.deepEqual(calls[2].args.params, searchParams)
+  assert.deepEqual(searchResult.references.map((reference) => reference.id), ['ref-b'])
+  assert.deepEqual(searchResult.documentReferences, [])
+  assert.deepEqual(searchResult.availableReferences.map((reference) => reference.id), ['ref-b'])
 
   console.log('reference query rust normalization probe passed')
 } finally {

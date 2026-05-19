@@ -33,6 +33,7 @@ import { refreshReferenceMetadata as refreshReferenceMetadataWithBackend } from 
 import {
   applyReferenceMutation,
   resolveReferenceQuery,
+  searchReferenceQuery as searchReferenceQueryWithBackend,
   scanWorkspaceCitationStyles,
   writeReferenceBibFile,
 } from '../services/references/referenceRuntime.js'
@@ -62,7 +63,6 @@ import {
 import {
   hasReferenceById,
   isReferenceSelectedForDocument,
-  resolveAvailableDocumentReferences,
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
@@ -71,7 +71,6 @@ import {
   resolveReferenceResolvedQueryState,
   resolveSelectedReference,
   buildReferenceQuerySelectionState,
-  searchReferences,
 } from '../domains/references/referenceResolvedQueryDto.js'
 import { classifyZoteroSyncError } from '../domains/references/zoteroSyncPresentation.js'
 
@@ -110,6 +109,15 @@ async function commitImportedReferences(store, projectRoot = '', importedReferen
     preferredSelectedReferenceId: mutation?.result?.preferredSelectedReferenceId || '',
   })
   return mutation?.result || null
+}
+
+function referenceSearchResult(result = {}) {
+  return {
+    references: Array.isArray(result?.references) ? result.references : [],
+    documentReferences: Array.isArray(result?.documentReferences) ? result.documentReferences : [],
+    availableReferences: Array.isArray(result?.availableReferences) ? result.availableReferences : [],
+    documentReferenceIds: Array.isArray(result?.documentReferenceIds) ? result.documentReferenceIds : [],
+  }
 }
 
 export const useReferencesStore = defineStore('references', {
@@ -517,12 +525,20 @@ export const useReferencesStore = defineStore('references', {
       )
     },
 
-    searchAvailableReferencesForDocument(texPath = '', query = '') {
-      return resolveAvailableDocumentReferences(
-        this.resolvedQueryState,
-        texPath,
-        query
-      )
+    async searchReferenceQuery(query = '', options = {}) {
+      const result = await searchReferenceQueryWithBackend({
+        references: this.references,
+        documentReferenceSelections: this.documentReferenceSelections,
+        texPath: options.texPath || '',
+        query,
+        sortKey: this.sortKey,
+      })
+      return referenceSearchResult(result)
+    },
+
+    async searchAvailableReferencesForDocument(texPath = '', query = '') {
+      const result = await this.searchReferenceQuery(query, { texPath })
+      return result.availableReferences
     },
 
     async setDocumentReferenceIds(projectRoot = '', texPath = '', referenceIds = []) {
@@ -579,8 +595,9 @@ export const useReferencesStore = defineStore('references', {
       return true
     },
 
-    searchRefs(query = '') {
-      return searchReferences(this.resolvedQueryState, query)
+    async searchRefs(query = '') {
+      const result = await this.searchReferenceQuery(query)
+      return result.references
     },
 
     async addReference(projectRoot = '', reference = {}, options = {}) {

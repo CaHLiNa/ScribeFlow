@@ -278,6 +278,7 @@ pub fn run() {
             references_runtime::references_write_bib_file,
             references_mutation::references_mutation_apply,
             references_query::references_query_resolve,
+            references_query::references_query_search,
             references_zotero_account::references_zotero_account_state_load,
             references_zotero_account::references_zotero_api_key_store,
             references_zotero_account::references_zotero_api_key_load,

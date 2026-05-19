@@ -165,7 +165,11 @@ const importText = ref('')
 const importLoading = ref(false)
 const importError = ref('')
 const importStatus = ref('')
+const filteredResults = ref([])
+const addResults = ref([])
 let paletteActionVersion = 0
+let filteredSearchVersion = 0
+let addSearchVersion = 0
 let paletteDisposed = false
 
 const isInsert = computed(() => internalMode.value === 'insert')
@@ -204,6 +208,8 @@ function beginPaletteAction() {
 function cancelPaletteActions() {
   if (paletteDisposed) return
   paletteActionVersion += 1
+  filteredSearchVersion += 1
+  addSearchVersion += 1
   importLoading.value = false
 }
 
@@ -231,6 +237,14 @@ function withDocumentScopeMeta(reference = {}) {
   }
 }
 
+function isFilteredSearchCurrent(version) {
+  return !paletteDisposed && version === filteredSearchVersion
+}
+
+function isAddSearchCurrent(version) {
+  return !paletteDisposed && version === addSearchVersion
+}
+
 function mergeReferenceResults(primary = [], secondary = [], limit = 20) {
   const seen = new Set()
   const results = []
@@ -244,10 +258,10 @@ function mergeReferenceResults(primary = [], secondary = [], limit = 20) {
   return results
 }
 
-const filteredResults = computed(() => {
+async function resolveFilteredResults() {
   if (!isDocumentScoped.value) {
     if (!props.query?.trim()) return referencesStore.sortedLibrary.slice(0, 20)
-    return referencesStore.searchRefs(props.query.trim()).slice(0, 20)
+    return (await referencesStore.searchRefs(props.query.trim())).slice(0, 20)
   }
 
   const documentReferences = referencesStore.documentReferencesForTex(props.documentPath)
@@ -258,14 +272,18 @@ const filteredResults = computed(() => {
       20
     )
   }
-  const normalizedQuery = props.query.trim().toLowerCase()
-  const matchingDocumentReferences = documentReferences
-    .filter((reference) => referenceMatchesQuery(reference, normalizedQuery))
-  const matchingLibraryReferences = referencesStore
-    .searchRefs(props.query.trim())
-    .filter((reference) => !documentReferenceIdSet.value.has(String(reference.id || '')))
-  return mergeReferenceResults(matchingDocumentReferences, matchingLibraryReferences, 20)
-})
+  const result = await referencesStore.searchReferenceQuery(props.query.trim(), {
+    texPath: props.documentPath,
+  })
+  return mergeReferenceResults(result.documentReferences, result.availableReferences, 20)
+}
+
+async function refreshFilteredResults() {
+  const version = ++filteredSearchVersion
+  const results = await resolveFilteredResults().catch(() => [])
+  if (!isFilteredSearchCurrent(version)) return
+  filteredResults.value = results
+}
 
 const editEntries = computed(() =>
   editCites.value.map((cite) => ({
@@ -274,17 +292,27 @@ const editEntries = computed(() =>
   }))
 )
 
-const addResults = computed(() => {
+async function resolveAddResults() {
   if (!addQuery.value.trim()) return []
   const existingKeys = new Set(editCites.value.map((cite) => cite.key))
-  const pool = isDocumentScoped.value
-    ? referencesStore.searchRefs(addQuery.value.trim())
-    : referencesStore.searchRefs(addQuery.value.trim())
+  const result = isDocumentScoped.value
+    ? await referencesStore.searchReferenceQuery(addQuery.value.trim(), {
+      texPath: props.documentPath,
+    })
+    : { references: await referencesStore.searchRefs(addQuery.value.trim()) }
+  const pool = result.references || []
   return pool
     .filter((reference) => !existingKeys.has(reference.citationKey || reference.id))
     .map((reference) => withDocumentScopeMeta(reference))
     .slice(0, 10)
-})
+}
+
+async function refreshAddResults() {
+  const version = ++addSearchVersion
+  const results = await resolveAddResults().catch(() => [])
+  if (!isAddSearchCurrent(version)) return
+  addResults.value = results
+}
 
 const paletteStyle = computed(() => ({
   left: `${Math.min(props.posX, window.innerWidth - 420)}px`,
@@ -299,27 +327,43 @@ watch(addResults, (results) => {
   addSelectedIdx.value = Math.max(0, Math.min(addSelectedIdx.value, Math.max(results.length - 1, 0)))
 })
 
+watch(
+  [
+    () => props.query,
+    () => props.documentPath,
+    () => props.referenceScope,
+    () => referencesStore.resolvedQueryState,
+    () => referencesStore.sortKey,
+    () => referencesStore.references,
+  ],
+  () => {
+    void refreshFilteredResults()
+  },
+  { immediate: true }
+)
+
+watch(
+  [
+    addQuery,
+    () => props.documentPath,
+    () => props.referenceScope,
+    () => editCites.value.map((cite) => cite.key).join('\u0000'),
+    () => referencesStore.resolvedQueryState,
+    () => referencesStore.sortKey,
+    () => referencesStore.references,
+  ],
+  () => {
+    void refreshAddResults()
+  },
+  { immediate: true }
+)
+
 function formatAuthor(reference = {}) {
   const authors = Array.isArray(reference.authors) ? reference.authors : []
   if (authors.length === 0) return 'Unknown'
   if (authors.length === 1) return authors[0]
   if (authors.length === 2) return `${authors[0]} & ${authors[1]}`
   return `${authors[0]} et al.`
-}
-
-function referenceMatchesQuery(reference = {}, normalizedQuery = '') {
-  if (!normalizedQuery) return true
-  const haystack = [
-    reference.title,
-    ...(Array.isArray(reference.authors) ? reference.authors : []),
-    reference.authorLine,
-    reference.source,
-    reference.citationKey,
-    reference.identifier,
-    reference.pages,
-    ...(Array.isArray(reference.tags) ? reference.tags : []),
-  ].filter(Boolean).join(' ').toLowerCase()
-  return haystack.includes(normalizedQuery)
 }
 
 function resolveReferenceByKey(key = '') {
@@ -541,6 +585,8 @@ onMounted(() => {
 onUnmounted(() => {
   paletteDisposed = true
   paletteActionVersion += 1
+  filteredSearchVersion += 1
+  addSearchVersion += 1
   document.removeEventListener('keydown', handleDocKeydown, true)
 })
 </script>

@@ -190,7 +190,9 @@ const { t } = useI18n()
 const query = ref('')
 const referenceScopePath = ref(props.filePath)
 const citedKeys = ref([])
+const availableResults = ref([])
 let referenceScopeRequestId = 0
+let referenceSearchRequestId = 0
 let referenceScopeTimer = null
 const hasSearchQuery = computed(() => query.value.trim().length > 0)
 
@@ -244,14 +246,6 @@ const citationCoverageStatus = computed(() => {
   if (counts.cited > 0) return t('All cited keys are linked')
   return t('No citations detected')
 })
-const availableResults = computed(() => {
-  const normalizedQuery = query.value.trim()
-  if (!normalizedQuery) return []
-  return referencesStore
-    .searchAvailableReferencesForDocument(documentReferencePath.value, normalizedQuery)
-    .slice(0, 12)
-})
-
 function clearReferenceScopeTimer() {
   if (referenceScopeTimer == null || typeof window === 'undefined') return
   window.clearTimeout(referenceScopeTimer)
@@ -315,15 +309,44 @@ async function removeReference(referenceId = '') {
   await referencesStore.removeDocumentReference(workspace.globalConfigDir, documentReferencePath.value, referenceId)
 }
 
+async function refreshAvailableResults() {
+  const requestId = ++referenceSearchRequestId
+  const normalizedQuery = query.value.trim()
+  if (!normalizedQuery) {
+    availableResults.value = []
+    return
+  }
+  const results = await referencesStore
+    .searchAvailableReferencesForDocument(documentReferencePath.value, normalizedQuery)
+    .catch(() => [])
+  if (requestId !== referenceSearchRequestId) return
+  availableResults.value = results.slice(0, 12)
+}
+
 watch(
   () => [props.filePath, workspace.path, documentContent.value],
   () => scheduleReferenceScopeResolve(documentContent.value ? 160 : 0),
   { immediate: true }
 )
 
+watch(
+  () => [
+    query.value,
+    documentReferencePath.value,
+    referencesStore.resolvedQueryState,
+    referencesStore.sortKey,
+    referencesStore.references,
+  ],
+  () => {
+    void refreshAvailableResults()
+  },
+  { immediate: true }
+)
+
 onUnmounted(() => {
   clearReferenceScopeTimer()
   referenceScopeRequestId += 1
+  referenceSearchRequestId += 1
 })
 </script>
 

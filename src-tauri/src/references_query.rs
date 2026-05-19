@@ -35,6 +35,21 @@ pub struct ReferencesQueryResolveParams {
     pub file_contents: Value,
 }
 
+#[derive(Debug, Clone, Deserialize, Default)]
+#[serde(rename_all = "camelCase")]
+pub struct ReferencesQuerySearchParams {
+    #[serde(default)]
+    pub references: Vec<Value>,
+    #[serde(default)]
+    pub document_reference_selections: Value,
+    #[serde(default)]
+    pub tex_path: String,
+    #[serde(default)]
+    pub query: String,
+    #[serde(default)]
+    pub sort_key: String,
+}
+
 fn string_payload_field(params: &Value, key: &str) -> String {
     params
         .as_object()
@@ -80,6 +95,16 @@ fn references_query_params_from_payload(params: Value) -> ReferencesQueryResolve
             "preferredSelectedReferenceId",
         ),
         file_contents: object_payload_field(&params, "fileContents"),
+    }
+}
+
+fn references_query_search_params_from_payload(params: Value) -> ReferencesQuerySearchParams {
+    ReferencesQuerySearchParams {
+        references: array_payload_field(&params, "references"),
+        document_reference_selections: object_payload_field(&params, "documentReferenceSelections"),
+        tex_path: string_payload_field(&params, "texPath"),
+        query: string_payload_field(&params, "query"),
+        sort_key: string_payload_field(&params, "sortKey"),
     }
 }
 
@@ -178,6 +203,71 @@ fn build_reference_search_index(references: &[Value]) -> Value {
     Value::Object(by_id)
 }
 
+fn normalize_reference_search_query(query: &str) -> String {
+    query.trim().to_lowercase()
+}
+
+fn reference_matches_search(reference: &Value, normalized_query: &str) -> bool {
+    normalized_query.is_empty() || reference_search_text(reference).contains(normalized_query)
+}
+
+fn search_reference_values(references: &[Value], normalized_query: &str) -> Vec<Value> {
+    references
+        .iter()
+        .filter(|reference| reference_matches_search(reference, normalized_query))
+        .cloned()
+        .collect()
+}
+
+fn valid_reference_ids(references: &[Value]) -> Vec<String> {
+    references
+        .iter()
+        .map(|reference| trim_string(reference.get("id")))
+        .filter(|id| !id.is_empty())
+        .collect()
+}
+
+fn normalize_document_reference_ids(ids: Option<&Value>, valid_ids: &[String]) -> Vec<String> {
+    ids.and_then(Value::as_array)
+        .cloned()
+        .unwrap_or_default()
+        .iter()
+        .filter_map(Value::as_str)
+        .map(str::trim)
+        .filter(|id| !id.is_empty())
+        .filter(|id| valid_ids.iter().any(|valid_id| valid_id == id))
+        .fold(Vec::<String>::new(), |mut acc, id| {
+            if !acc.iter().any(|existing| existing == id) {
+                acc.push(id.to_string());
+            }
+            acc
+        })
+}
+
+fn selected_document_reference_ids(
+    document_reference_selections: &Value,
+    tex_path: &str,
+    references: &[Value],
+) -> Vec<String> {
+    let normalized_path = tex_path.trim();
+    if normalized_path.is_empty() {
+        return Vec::new();
+    }
+
+    let Some(selections) = document_reference_selections.as_object() else {
+        return Vec::new();
+    };
+
+    let selected_ids = selections.get(normalized_path).or_else(|| {
+        selections
+            .iter()
+            .find(|(path, _)| path.trim() == normalized_path)
+            .map(|(_, ids)| ids)
+    });
+
+    normalize_document_reference_ids(selected_ids, &valid_reference_ids(references))
+}
+
 fn build_document_reference_entry(
     reference_ids: Vec<String>,
     references: &[Value],
@@ -216,11 +306,7 @@ fn build_document_reference_state(
     references: &[Value],
     sorted_references: &[Value],
 ) -> Value {
-    let valid_ids = references
-        .iter()
-        .map(|reference| trim_string(reference.get("id")))
-        .filter(|id| !id.is_empty())
-        .collect::<Vec<_>>();
+    let valid_ids = valid_reference_ids(references);
     let mut by_path = Map::new();
 
     if let Some(selections) = document_reference_selections.as_object() {
@@ -230,21 +316,7 @@ fn build_document_reference_state(
                 continue;
             }
 
-            let reference_ids = ids
-                .as_array()
-                .cloned()
-                .unwrap_or_default()
-                .iter()
-                .filter_map(Value::as_str)
-                .map(str::trim)
-                .filter(|id| !id.is_empty())
-                .filter(|id| valid_ids.iter().any(|valid_id| valid_id == id))
-                .fold(Vec::<String>::new(), |mut acc, id| {
-                    if !acc.iter().any(|existing| existing == id) {
-                        acc.push(id.to_string());
-                    }
-                    acc
-                });
+            let reference_ids = normalize_document_reference_ids(Some(ids), &valid_ids);
 
             if reference_ids.is_empty() {
                 continue;
@@ -795,11 +867,62 @@ pub async fn references_query_resolve(params: Value) -> Result<Value, String> {
     references_query_resolve_resolved(references_query_params_from_payload(params)).await
 }
 
+pub async fn references_query_search_resolved(
+    params: ReferencesQuerySearchParams,
+) -> Result<Value, String> {
+    let sort_key = normalize_sort_key(&params.sort_key);
+    let normalized_query = normalize_reference_search_query(&params.query);
+    let selected_ids = selected_document_reference_ids(
+        &params.document_reference_selections,
+        &params.tex_path,
+        &params.references,
+    );
+    let mut sorted_references = params.references.clone();
+    sorted_references.sort_by(|a, b| compare_references(a, b, &sort_key));
+
+    let document_references = params
+        .references
+        .iter()
+        .filter(|reference| {
+            selected_ids
+                .iter()
+                .any(|id| id == &trim_string(reference.get("id")))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+    let available_references = sorted_references
+        .iter()
+        .filter(|reference| {
+            !selected_ids
+                .iter()
+                .any(|id| id == &trim_string(reference.get("id")))
+        })
+        .cloned()
+        .collect::<Vec<_>>();
+
+    Ok(json!({
+        "query": params.query.trim(),
+        "normalizedQuery": normalized_query,
+        "sortKey": sort_key,
+        "texPath": params.tex_path.trim(),
+        "documentReferenceIds": selected_ids,
+        "references": search_reference_values(&sorted_references, &normalized_query),
+        "documentReferences": search_reference_values(&document_references, &normalized_query),
+        "availableReferences": search_reference_values(&available_references, &normalized_query),
+    }))
+}
+
+#[tauri::command]
+pub async fn references_query_search(params: Value) -> Result<Value, String> {
+    references_query_search_resolved(references_query_search_params_from_payload(params)).await
+}
+
 #[cfg(test)]
 mod tests {
     use super::{
         references_query_params_from_payload, references_query_resolve_resolved,
-        ReferencesQueryResolveParams,
+        references_query_search_params_from_payload, references_query_search_resolved,
+        ReferencesQueryResolveParams, ReferencesQuerySearchParams,
     };
     use serde_json::{json, Value};
 
@@ -940,6 +1063,93 @@ mod tests {
     }
 
     #[tokio::test]
+    async fn searches_references_and_document_available_targets_in_rust() {
+        let references = vec![
+            json!({
+                "id":"ref-1",
+                "title":"Graph Neural Networks",
+                "authors":["Ada Lovelace"],
+                "citationKey":"lovelace2024",
+                "tags":["graph"],
+                "year":2024,
+            }),
+            json!({
+                "id":"ref-2",
+                "title":"Bayesian Methods",
+                "authorLine":"Grace Hopper",
+                "citationKey":"hopper2025",
+                "source":"Journal of Tests",
+                "year":2025,
+            }),
+            json!({
+                "id":"ref-3",
+                "title":"Unused Reference",
+                "citationKey":"unused2026",
+                "year":2026,
+            }),
+        ];
+
+        let result = references_query_search_resolved(ReferencesQuerySearchParams {
+            references,
+            document_reference_selections: json!({
+                "paper.tex": ["ref-1", "missing", "ref-1", "ref-2"],
+            }),
+            tex_path: " paper.tex ".to_string(),
+            query: " grace ".to_string(),
+            sort_key: "year-desc".to_string(),
+        })
+        .await
+        .expect("search references");
+
+        assert_eq!(result["normalizedQuery"].as_str(), Some("grace"));
+        assert_eq!(result["documentReferenceIds"], json!(["ref-1", "ref-2"]));
+        assert_eq!(
+            result["references"]
+                .as_array()
+                .and_then(|items| items.first())
+                .and_then(|reference| reference.get("id"))
+                .and_then(Value::as_str),
+            Some("ref-2")
+        );
+        assert_eq!(
+            result["documentReferences"]
+                .as_array()
+                .and_then(|items| items.first())
+                .and_then(|reference| reference.get("id"))
+                .and_then(Value::as_str),
+            Some("ref-2")
+        );
+        assert_eq!(
+            result["availableReferences"].as_array().map(Vec::len),
+            Some(0)
+        );
+
+        let available_result = references_query_search_resolved(ReferencesQuerySearchParams {
+            references: vec![
+                json!({"id":"ref-1","title":"Graph Neural Networks","year":2024}),
+                json!({"id":"ref-2","title":"Bayesian Methods","year":2025}),
+                json!({"id":"ref-3","title":"Unused Reference","citationKey":"unused2026","year":2026}),
+            ],
+            document_reference_selections: json!({
+                "paper.tex": ["ref-1", "ref-2"],
+            }),
+            tex_path: "paper.tex".to_string(),
+            query: "unused".to_string(),
+            sort_key: "year-desc".to_string(),
+        })
+        .await
+        .expect("search available references");
+        assert_eq!(
+            available_result["availableReferences"]
+                .as_array()
+                .and_then(|items| items.first())
+                .and_then(|reference| reference.get("id"))
+                .and_then(Value::as_str),
+            Some("ref-3")
+        );
+    }
+
+    #[tokio::test]
     async fn builds_citation_usage_index_from_workspace_files() {
         let result = references_query_resolve_resolved(ReferencesQueryResolveParams {
             references: vec![],
@@ -1064,10 +1274,7 @@ mod tests {
             result["query"]["selectedReferenceId"].as_str(),
             Some("ref-1")
         );
-        assert_eq!(
-            result["selectedCollection"]["key"].as_str(),
-            Some("ml")
-        );
+        assert_eq!(result["selectedCollection"]["key"].as_str(), Some("ml"));
         assert_eq!(result["selectedTag"]["key"].as_str(), Some("theory"));
     }
 
@@ -1106,5 +1313,27 @@ mod tests {
         let defaults = references_query_params_from_payload(Value::Null);
         assert!(defaults.references.is_empty());
         assert_eq!(defaults.file_contents, json!({}));
+    }
+
+    #[test]
+    fn references_query_search_params_normalize_raw_payload() {
+        let params = references_query_search_params_from_payload(json!({
+            "references": [{"id": "ref-a"}],
+            "documentReferenceSelections": "not-an-object",
+            "texPath": ["paper.tex"],
+            "query": " graph ",
+            "sortKey": false
+        }));
+
+        assert_eq!(params.references.len(), 1);
+        assert_eq!(params.document_reference_selections, json!({}));
+        assert_eq!(params.tex_path, "");
+        assert_eq!(params.query, " graph ");
+        assert_eq!(params.sort_key, "");
+
+        let defaults = references_query_search_params_from_payload(Value::Null);
+        assert!(defaults.references.is_empty());
+        assert_eq!(defaults.document_reference_selections, json!({}));
+        assert_eq!(defaults.query, "");
     }
 }

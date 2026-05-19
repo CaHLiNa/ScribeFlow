@@ -15,7 +15,6 @@ import {
   buildReferenceQuerySelectionState,
   hasReferenceById,
   isReferenceSelectedForDocument,
-  resolveAvailableDocumentReferences,
   resolveDocumentReferenceByKey,
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
@@ -23,7 +22,6 @@ import {
   resolveReferenceById,
   resolveReferenceResolvedQueryState,
   resolveSelectedReference,
-  searchReferences,
 } from '../src/domains/references/referenceResolvedQueryDto.js'
 
 const collections = [
@@ -163,18 +161,6 @@ assert.deepEqual(resolveDocumentReferenceByKey(resolvedQueryState, 'paper.tex', 
 assert.equal(resolveDocumentReferenceByKey(resolvedQueryState, 'paper.tex', 'unused2026'), null)
 assert.equal(isReferenceSelectedForDocument(resolvedQueryState, 'paper.tex', 'ref-1'), true)
 assert.equal(isReferenceSelectedForDocument(resolvedQueryState, 'paper.tex', 'unused2026'), false)
-assert.deepEqual(searchReferences(resolvedQueryState, 'grace'), [references[1]])
-assert.deepEqual(searchReferences(resolvedQueryState, 'graph'), [references[0]])
-assert.deepEqual(searchReferences(resolvedQueryState, ''), references)
-assert.deepEqual(searchReferences({
-  sortedReferences: references,
-}, 'graph'), [])
-assert.deepEqual(resolveAvailableDocumentReferences(resolvedQueryState, 'paper.tex', ''), [
-  references[2],
-])
-assert.deepEqual(resolveAvailableDocumentReferences(resolvedQueryState, 'paper.tex', 'unused'), [
-  references[2],
-])
 assert.deepEqual(buildReferenceDockPdfOpenState(' ref-2 '), {
   canOpen: true,
   referenceDockPdfOpen: true,
@@ -328,6 +314,8 @@ const libraryIoSource = await readFile('src/services/references/referenceLibrary
 const backendSource = await readFile('src-tauri/src/references_backend.rs', 'utf8')
 const libSource = await readFile('src-tauri/src/lib.rs', 'utf8')
 const workspaceLifecycleSource = await readFile('src/app/workspace/useWorkspaceLifecycle.js', 'utf8')
+const citationPaletteSource = await readFile('src/components/editor/CitationPalette.vue', 'utf8')
+const documentReferencesPanelSource = await readFile('src/components/sidebar/DocumentReferencesPanel.vue', 'utf8')
 const actionSource = (actionName) => {
   const pattern = new RegExp(`(?:async\\s+)?${actionName}\\([^)]*\\) \\{[\\s\\S]*?\\n    \\},`)
   const match = storeSource.match(pattern)
@@ -375,10 +363,10 @@ assert.match(
   /resolveDocumentReferenceIds/,
   'referenceResolvedQueryDto must expose document-reference DTO readers for synchronous editor APIs',
 )
-assert.match(
+assert.doesNotMatch(
   queryDtoSource,
-  /referenceSearchIndex/,
-  'referenceResolvedQueryDto may only filter against Rust-built search indexes',
+  /searchReferences|resolveAvailableDocumentReferences|referenceSearchIndex|normalizedQuery|\.includes\(/,
+  'referenceResolvedQueryDto must not own reference search or available-reference filtering',
 )
 assert.doesNotMatch(
   queryDtoSource,
@@ -610,13 +598,43 @@ assert.match(
 )
 assert.match(
   storeSource,
-  /resolveAvailableDocumentReferences/,
-  'references store must delegate available-reference search filtering',
+  /searchReferenceQueryWithBackend/,
+  'references store must delegate reference search filtering to the Rust bridge',
 )
 assert.match(
   storeSource,
-  /searchReferences/,
-  'references store must delegate reference search rules',
+  /async searchReferenceQuery\(/,
+  'references store must expose Rust-backed async reference search',
+)
+assert.match(
+  actionSource('searchReferenceQuery'),
+  /searchReferenceQueryWithBackend\(\{[\s\S]*references: this\.references,[\s\S]*documentReferenceSelections: this\.documentReferenceSelections,[\s\S]*sortKey: this\.sortKey/,
+  'searchReferenceQuery must send reference search inputs to Rust',
+)
+assert.match(
+  actionSource('searchAvailableReferencesForDocument'),
+  /await this\.searchReferenceQuery\(query, \{ texPath \}\)[\s\S]*return result\.availableReferences/,
+  'available-reference search must consume Rust-returned availableReferences',
+)
+assert.match(
+  actionSource('searchRefs'),
+  /await this\.searchReferenceQuery\(query\)[\s\S]*return result\.references/,
+  'library search must consume Rust-returned references',
+)
+assert.doesNotMatch(
+  citationPaletteSource,
+  /referenceMatchesQuery|haystack|\.filter\(\(reference\) => referenceMatchesQuery/,
+  'CitationPalette must not reconstruct reference search text in UI',
+)
+assert.match(
+  citationPaletteSource,
+  /await referencesStore\.searchReferenceQuery\([\s\S]*texPath: props\.documentPath/,
+  'CitationPalette document-scoped search must use the Rust-backed search action',
+)
+assert.match(
+  documentReferencesPanelSource,
+  /await referencesStore[\s\S]*\.searchAvailableReferencesForDocument\(documentReferencePath\.value, normalizedQuery\)/,
+  'DocumentReferencesPanel search must use the Rust-backed available-reference search action',
 )
 assert.match(
   storeSource,
@@ -929,7 +947,7 @@ console.log(JSON.stringify({
     rustDocumentReferenceMutationDerivation: true,
     documentReferenceLookupDerived: true,
     citationUsageKeysDerived: true,
-    referenceSearchDerived: true,
+    rustReferenceSearchFiltering: true,
     rustExportTargetResolution: true,
     citationFormatTargetStateDerived: true,
     rustImportOutcomeConsumed: true,
