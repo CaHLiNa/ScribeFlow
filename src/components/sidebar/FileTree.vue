@@ -175,6 +175,7 @@ const workspaceMenuOpen = ref(false)
 const newMenuOpen = ref(false)
 const workspaceMenuPosition = reactive({ right: 8, bottom: 8 })
 const contextMenu = reactive({ show: false, x: 0, y: 0, entry: null })
+let workspaceMenuResizeFrame: number | null = null
 const { dismissOtherTransientOverlays } = useTransientOverlayDismiss('file-tree-menu', () => {
   closeWorkspaceMenu()
   closeNewMenu()
@@ -353,6 +354,15 @@ function updateWorkspaceMenuPosition() {
   )
 }
 
+function scheduleWorkspaceMenuPositionUpdate() {
+  if (workspaceMenuResizeFrame !== null) return
+
+  workspaceMenuResizeFrame = window.requestAnimationFrame(() => {
+    workspaceMenuResizeFrame = null
+    updateWorkspaceMenuPosition()
+  })
+}
+
 function handleWorkspaceMenuDocumentPointerDown(event) {
   const target = event.target
   if (!(target instanceof Node)) return
@@ -393,13 +403,17 @@ watch(workspaceMenuOpen, async (open) => {
   if (open) {
     await nextTick()
     updateWorkspaceMenuPosition()
-    window.addEventListener('resize', updateWorkspaceMenuPosition)
+    window.addEventListener('resize', scheduleWorkspaceMenuPositionUpdate)
     document.addEventListener('pointerdown', handleWorkspaceMenuDocumentPointerDown, true)
     document.addEventListener('keydown', handleWorkspaceMenuEscape, true)
     return
   }
 
-  window.removeEventListener('resize', updateWorkspaceMenuPosition)
+  window.removeEventListener('resize', scheduleWorkspaceMenuPositionUpdate)
+  if (workspaceMenuResizeFrame !== null) {
+    window.cancelAnimationFrame(workspaceMenuResizeFrame)
+    workspaceMenuResizeFrame = null
+  }
   document.removeEventListener('pointerdown', handleWorkspaceMenuDocumentPointerDown, true)
   document.removeEventListener('keydown', handleWorkspaceMenuEscape, true)
 })
@@ -412,7 +426,11 @@ watch(
 )
 
 onBeforeUnmount(() => {
-  window.removeEventListener('resize', updateWorkspaceMenuPosition)
+  window.removeEventListener('resize', scheduleWorkspaceMenuPositionUpdate)
+  if (workspaceMenuResizeFrame !== null) {
+    window.cancelAnimationFrame(workspaceMenuResizeFrame)
+    workspaceMenuResizeFrame = null
+  }
   document.removeEventListener('pointerdown', handleWorkspaceMenuDocumentPointerDown, true)
   document.removeEventListener('keydown', handleWorkspaceMenuEscape, true)
 })

@@ -138,25 +138,21 @@ defineProps({
 :global(html.is-tauri-macos) .app-shell-root,
 :global(html.is-tauri-macos) .app-shell-workspace,
 :global(html.is-tauri-macos) .app-shell-workbench {
-  background: transparent !important;
-  background-color: transparent !important;
+  background: var(--app-canvas) !important;
+  background-color: var(--app-canvas) !important;
 }
 
 .app-shell-topbar,
 .app-shell-region-left,
 .app-shell-region-right {
-  transition:
-    opacity var(--shell-panel-fade-duration) ease-out,
-    width var(--shell-panel-motion-duration) var(--shell-panel-motion-ease);
+  transition: opacity var(--shell-panel-fade-duration) ease-out;
 }
 
 .app-shell-root.is-zen-mode .app-shell-topbar:not(:hover),
 .app-shell-root.is-zen-mode .app-shell-region-left:not(:hover),
 .app-shell-root.is-zen-mode .app-shell-region-right:not(:hover) {
   opacity: 0.08;
-  transition:
-    opacity 1.5s ease-out 1.5s,
-    width var(--shell-panel-motion-duration) var(--shell-panel-motion-ease);
+  transition: opacity 1.5s ease-out 1.5s;
 }
 
 .app-shell-topbar {
@@ -173,6 +169,7 @@ defineProps({
   gap: 0;
   padding: 0;
   background: var(--app-canvas);
+  transform: translateZ(0);
 }
 
 .app-shell-region {
@@ -190,7 +187,6 @@ defineProps({
     1px 0 16px var(--sidebar-glass-shadow);
   -webkit-backdrop-filter: none;
   backdrop-filter: none;
-  will-change: width;
 }
 
 .app-shell-region-left.is-workspace-left-region {
@@ -217,7 +213,6 @@ defineProps({
 
 .app-shell-region-right {
   background: transparent;
-  will-change: width;
 }
 
 .app-shell-root.is-shell-resizing .app-shell-region-left,
@@ -312,12 +307,9 @@ defineProps({
   box-shadow: none;
   overflow: hidden;
   z-index: 2;
-  transition:
-    margin-left var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
-    padding-left var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
-    margin-right var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
-    padding-right var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
-    border-radius var(--shell-panel-motion-duration) var(--shell-panel-motion-ease);
+  transform: translateZ(0);
+  will-change: transform;
+  transition: background-color var(--shell-panel-surface-duration) ease;
 }
 
 .app-shell-main-card.is-empty-workspace-shell {
@@ -349,9 +341,7 @@ defineProps({
   width: 0;
   overflow: visible;
   opacity: 0;
-  transition:
-    width var(--shell-panel-motion-duration) var(--shell-panel-motion-ease),
-    opacity var(--shell-panel-surface-duration) ease;
+  transition: opacity var(--shell-panel-surface-duration) ease;
 }
 
 .app-shell-resize-slot.is-visible {

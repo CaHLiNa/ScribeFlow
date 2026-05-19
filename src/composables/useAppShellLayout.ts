@@ -225,7 +225,9 @@ function commitLeftSidebarWidth(value) {
   const minWidth = resolveMinimumLeftSidebarWidth()
   const maxWidth = resolveMaximumLeftSidebarWidth()
   const nextWidth = normalizeSidebarWidth(value, DEFAULT_LEFT_SIDEBAR_WIDTH)
-  leftSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, nextWidth))
+  const clampedWidth = Math.max(minWidth, Math.min(maxWidth, nextWidth))
+  if (leftSidebarWidth.value === clampedWidth) return
+  leftSidebarWidth.value = clampedWidth
   debounceSidebarWidthSave()
 }
 
@@ -242,7 +244,9 @@ function commitRightSidebarWidth(value) {
   const minWidth = resolveMinimumRightSidebarWidth()
   const maxWidth = resolveMaximumRightSidebarWidth()
   const nextWidth = normalizeSidebarWidth(value, DEFAULT_RIGHT_SIDEBAR_WIDTH)
-  rightSidebarWidth.value = Math.max(minWidth, Math.min(maxWidth, nextWidth))
+  const clampedWidth = Math.max(minWidth, Math.min(maxWidth, nextWidth))
+  if (rightSidebarWidth.value === clampedWidth) return
+  rightSidebarWidth.value = clampedWidth
   debounceSidebarWidthSave()
 }
 
@@ -282,7 +286,9 @@ function commitDocumentDockWidth(value, containerWidth = window.innerWidth, opti
   const nextWidth = normalizeSidebarWidth(value, DEFAULT_DOCUMENT_DOCK_WIDTH)
   const resizeOptions = normalizeDocumentDockResizeOptions(options)
   const maxWidth = resolveMaximumDocumentDockWidth(containerWidth, options)
-  documentDockWidth.value = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
+  const clampedWidth = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
+  if (documentDockWidth.value === clampedWidth) return
+  documentDockWidth.value = clampedWidth
   debounceSidebarWidthSave()
 }
 
@@ -290,7 +296,9 @@ function commitReferenceDockWidth(value, containerWidth = window.innerWidth, opt
   const nextWidth = normalizeSidebarWidth(value, DEFAULT_REFERENCE_DOCK_WIDTH)
   const resizeOptions = normalizeDocumentDockResizeOptions(options)
   const maxWidth = resolveMaximumDocumentDockWidth(containerWidth, options)
-  referenceDockWidth.value = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
+  const clampedWidth = Math.max(resizeOptions.minDockWidth, Math.min(maxWidth, nextWidth))
+  if (referenceDockWidth.value === clampedWidth) return
+  referenceDockWidth.value = clampedWidth
   debounceSidebarWidthSave()
 }
 

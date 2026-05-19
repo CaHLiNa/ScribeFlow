@@ -30,28 +30,29 @@ body,
   -webkit-font-smoothing: antialiased;
 }
 
-html.is-macos {
-  --app-canvas: transparent;
-}
-
 html.is-macos,
 html.is-macos body,
 html.is-macos #app,
 html.is-tauri-macos,
 html.is-tauri-macos body,
 html.is-tauri-macos #app {
-  background: transparent !important;
-  background-color: transparent !important;
-}
-
-html.is-macos body,
-html.is-tauri-macos body {
-  background-color: transparent !important;
+  background: var(--app-canvas) !important;
+  background-color: var(--app-canvas) !important;
 }
 
 html.is-macos .app-shell-root,
 html.is-macos .app-shell-workspace,
 html.is-macos .app-shell-workbench,
+html.is-tauri-macos .app-shell-root,
+html.is-tauri-macos .app-shell-workspace,
+html.is-tauri-macos .app-shell-workbench {
+  background: var(--app-canvas) !important;
+  background-color: var(--app-canvas) !important;
+  box-shadow: none !important;
+  -webkit-backdrop-filter: none !important;
+  backdrop-filter: none !important;
+}
+
 html.is-macos .left-shell-sidebar,
 html.is-macos .settings-sidebar-shell,
 html.is-macos .left-shell-sidebar__content,
@@ -61,9 +62,6 @@ html.is-macos .file-tree-scroll,
 html.is-macos .references-sidebar-panel,
 html.is-macos .references-sidebar-panel__content,
 html.is-macos .outline-panel,
-html.is-tauri-macos .app-shell-root,
-html.is-tauri-macos .app-shell-workspace,
-html.is-tauri-macos .app-shell-workbench,
 html.is-tauri-macos .left-shell-sidebar,
 html.is-tauri-macos .settings-sidebar-shell,
 html.is-tauri-macos .left-shell-sidebar__content,
