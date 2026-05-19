@@ -1138,7 +1138,7 @@ export const useExtensionsStore = defineStore('extensions', {
       if (action === 'open-reference' && target.referenceId) {
         const workspaceStore = useWorkspaceStore()
         const referencesStore = useReferencesStore()
-        referencesStore.selectReference(target.referenceId)
+        await referencesStore.selectReference(target.referenceId).catch(() => {})
         await workspaceStore.openWorkspaceSurface().catch(() => {})
         await workspaceStore.setLeftSidebarPanel('references').catch(() => {})
         await workspaceStore.openReferenceDock().catch(() => {})

@@ -15,7 +15,7 @@
       :is-loading="referencesStore.isLoading"
       :load-error="referencesStore.loadError"
       :references="filteredReferences"
-      :selected-reference-id="selectedReference?.id"
+      :selected-reference-id="referencesStore.selectedReferenceId"
       :sort-key="sortKey"
       :zotero-mutation-error="referencesStore.zoteroMutationError"
       @add="showAddDialog = true"
@@ -186,9 +186,9 @@ function toggleYearSort() {
   referencesStore.setSortKey(resolveNextReferenceSortKey(sortKey.value, 'year'))
 }
 
-function handleReferenceRowClick(reference = {}) {
+async function handleReferenceRowClick(reference = {}) {
   if (!reference?.id) return
-  referencesStore.selectReference(reference.id)
+  await referencesStore.selectReference(reference.id).catch(() => {})
   resetReferenceDockTabs()
   void workspace.openReferenceDock()
 }

@@ -18,8 +18,8 @@ assert.match(
 )
 assert.match(
   workbenchSource,
-  /<ReferenceLibraryMain[\s\S]*:references="filteredReferences"[\s\S]*:selected-reference-id="selectedReference\?\.id"[\s\S]*:zotero-mutation-error="referencesStore\.zoteroMutationError"/,
-  'ReferenceLibraryWorkbench must pass derived list state into ReferenceLibraryMain',
+  /<ReferenceLibraryMain[\s\S]*:references="filteredReferences"[\s\S]*:selected-reference-id="referencesStore\.selectedReferenceId"[\s\S]*:zotero-mutation-error="referencesStore\.zoteroMutationError"/,
+  'ReferenceLibraryWorkbench must pass raw selected-reference intent into the list while detail data stays Rust-query-derived',
 )
 assert.match(
   workbenchSource,

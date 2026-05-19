@@ -280,6 +280,7 @@ Components over 500 lines:
 - 2026-05-19: Generated BibTeX document sync target resolution moved back to Rust. `syncBibFileForTex()` now passes the current reference snapshot and `documentReferenceSelections` to `references_write_bib_file`; `src-tauri/src/references_runtime.rs` resolves the selected TeX document references before writing the generated `.bib`, and probes guard that the store does not pre-filter selected document references in JS for this write path.
 - 2026-05-19: The reference exact-id presence DTO helper was removed. PDF dock stale-tab reconciliation now uses `buildReferenceDockPdfSnapshotState()` over the Rust-normalized snapshot already applied to Pinia, instead of calling `referenceResolvedQueryDto.hasReferenceById()` against `referenceLookup.byId`.
 - 2026-05-19: The selected-reference DTO wrapper was removed. `src/stores/references.js` now consumes Rust's returned `selectedReference` field directly, and `referenceResolvedQueryDto.js` is limited to remaining lookup/document-reference DTO adapters for synchronous editor/citation APIs.
+- 2026-05-19: The exact-id query DTO reader was removed. `selectReference()` now stores raw selection intent, awaits `refreshResolvedQueryState()`, and lets Rust return the normalized selected reference; the reference table row highlight uses the raw selected id while detail data remains Rust-query-derived.
 
 ## Document Runtime Cleanup Log
 

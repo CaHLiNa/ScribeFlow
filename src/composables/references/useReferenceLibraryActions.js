@@ -205,7 +205,7 @@ export function useReferenceLibraryActions({ filteredReferences = [] } = {}) {
 
   function openReferenceContextMenu(event, reference = {}) {
     if (!reference?.id) return
-    referencesStore.selectReference(reference.id)
+    void referencesStore.selectReference(reference.id).catch(() => {})
 
     openSurfaceContextMenu({
       x: event.clientX,

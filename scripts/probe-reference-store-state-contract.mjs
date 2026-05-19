@@ -18,7 +18,6 @@ import {
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
   resolveReferenceByKey,
-  resolveReferenceById,
   resolveReferenceResolvedQueryState,
 } from '../src/domains/references/referenceResolvedQueryDto.js'
 
@@ -131,9 +130,6 @@ assert.deepEqual(resolveDocumentReferences(resolvedQueryState, 'missing.tex'), [
 assert.deepEqual(resolveReferenceByKey(resolvedQueryState, 'lovelace2024'), references[0])
 assert.deepEqual(resolveReferenceByKey(resolvedQueryState, 'ref-2'), references[1])
 assert.equal(resolveReferenceByKey(resolvedQueryState, 'missing'), null)
-assert.deepEqual(resolveReferenceById(resolvedQueryState, 'ref-2'), references[1])
-assert.deepEqual(resolveReferenceById(resolvedQueryState, ' ref-2 '), references[1])
-assert.equal(resolveReferenceById(resolvedQueryState, 'hopper2025'), null)
 assert.deepEqual([...resolveReferenceCitationUsageKeys({
   lovelace2024: ['paper.tex'],
   hopper2025: [],
@@ -353,8 +349,8 @@ assert.match(
 )
 assert.doesNotMatch(
   queryDtoSource,
-  /hasReferenceById/,
-  'referenceResolvedQueryDto must not expose extra exact-id presence helpers for UI dock reconciliation',
+  /hasReferenceById|resolveReferenceById/,
+  'referenceResolvedQueryDto must not expose exact-id lookup helpers for store selection reconciliation',
 )
 assert.doesNotMatch(
   queryDtoSource,
@@ -496,13 +492,18 @@ for (const actionName of [
 }
 assert.match(
   actionSource('selectReference'),
-  /resolveReferenceById\(\s*this\.resolvedQueryState,\s*this\.selectedReferenceId\s*\)/,
-  'selectReference must use Rust-returned lookup DTOs for synchronous UI affordance only',
+  /async selectReference\(referenceId\)/,
+  'selectReference must resolve selected-reference intent through the async Rust query path',
 )
 assert.match(
   actionSource('selectReference'),
-  /void this\.refreshResolvedQueryState\(\)/,
+  /await this\.refreshResolvedQueryState\(\)/,
   'selectReference must reconcile the raw selected-reference intent through Rust query normalization',
+)
+assert.doesNotMatch(
+  actionSource('selectReference'),
+  /resolveReferenceById|referenceLookup|selectedReference,/,
+  'selectReference must not derive selectedReference from JS lookup DTOs',
 )
 assert.match(
   actionSource('applyLibrarySnapshot'),
@@ -993,6 +994,7 @@ console.log(JSON.stringify({
     rustSnapshotPayloadBuild: true,
     storeUsesDomainHelper: true,
     exactIdPresenceHelperRemoved: true,
+    exactIdLookupReaderRemoved: true,
     selectedReferenceWrapperRemoved: true,
     rustQuerySectionAndSortKeyValidation: true,
     storageRootRemainsStoreScoped: true,

@@ -66,7 +66,6 @@ import {
   resolveDocumentReferenceIds,
   resolveDocumentReferences,
   resolveReferenceByKey,
-  resolveReferenceById,
   resolveReferenceResolvedQueryState,
   buildReferenceQuerySelectionState,
 } from '../domains/references/referenceResolvedQueryDto.js'
@@ -457,24 +456,9 @@ export const useReferencesStore = defineStore('references', {
       this.citationStyle = resolveReferenceCitationStyleId(normalized, Boolean(info))
     },
 
-    selectReference(referenceId) {
+    async selectReference(referenceId) {
       this.selectedReferenceId = String(referenceId ?? '')
-      const selectedReference = resolveReferenceById(
-        this.resolvedQueryState,
-        this.selectedReferenceId
-      )
-      if (selectedReference) {
-        this.resolvedQueryState = {
-          ...this.resolvedQueryState,
-          query: {
-            ...(this.resolvedQueryState?.query || {}),
-            selectedReferenceId: this.selectedReferenceId,
-          },
-          selectedReferenceId: this.selectedReferenceId,
-          selectedReference,
-        }
-      }
-      void this.refreshResolvedQueryState()
+      await this.refreshResolvedQueryState()
     },
 
     openReferenceDockPdf(referenceId = this.selectedReferenceId) {
