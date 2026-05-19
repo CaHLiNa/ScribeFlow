@@ -1,7 +1,6 @@
 import { getVersion } from '@tauri-apps/api/app'
-import { invoke } from '@tauri-apps/api/core'
-import { listen } from '@tauri-apps/api/event'
 import { openExternalHttpUrl } from './externalLinks.js'
+import { invokeCommand, listenToNativeEvent } from './tauriBridge.ts'
 const RELEASES_URL = 'https://github.com/CaHLiNa/ScribeFlow/releases'
 const RELEASES_LATEST_API_URL = 'https://api.github.com/repos/CaHLiNa/ScribeFlow/releases/latest'
 
@@ -27,15 +26,15 @@ export async function checkForAppUpdates(currentVersion = '') {
   }
 
   const payload = await response.json()
-  return invoke('app_update_release_resolve', {
+  return invokeCommand('app_update_release_resolve', {
     currentVersion,
     payload,
   })
 }
 
 export function onAppUpdateDownloadProgress(handler) {
-  return listen('app-update-download-progress', (event) => {
-    handler?.(event.payload || {})
+  return listenToNativeEvent('app-update-download-progress', (payload) => {
+    handler?.(payload || {})
   })
 }
 
@@ -44,14 +43,14 @@ export async function downloadAppUpdateAsset(asset) {
     throw new Error('No update installer is available for this device.')
   }
 
-  return invoke('app_update_download_asset', {
+  return invokeCommand('app_update_download_asset', {
     downloadUrl: asset.downloadUrl,
     fileName: asset.name,
   })
 }
 
 export async function revealDownloadedUpdate(path = '') {
-  return invoke('app_update_reveal_download', { path })
+  return invokeCommand('app_update_reveal_download', { path })
 }
 
 export async function openReleasesPage(url = RELEASES_URL) {

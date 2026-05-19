@@ -220,6 +220,7 @@ npm run verify
 
 - `npm run verify:quick`
 - `npm run verify:extensions`
+- `npm run verify:bridge`
 - `npm run verify:build`
 - `npm run verify:rust`
 
@@ -227,6 +228,7 @@ npm run verify
 
 - `npm run guard:ui-bridges`
 - `npm run guard:js-layer-boundaries`
+- `npm run verify:bridge`
 - `npm run guard:pdf-runtime`
 - `npm run guard:textmate-runtime`
 - `npm run check:bundle`

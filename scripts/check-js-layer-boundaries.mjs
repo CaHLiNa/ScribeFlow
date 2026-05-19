@@ -35,7 +35,7 @@ function walk(dir) {
 }
 
 const violations = walk(domainsRoot)
-  .filter((path) => path.endsWith('.js') || path.endsWith('.vue'))
+  .filter((path) => path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.vue'))
   .flatMap((path) => {
     const source = readFileSync(path, 'utf8')
     return Array.from(source.matchAll(importPattern))
@@ -60,7 +60,7 @@ const legacyViolations = violations.filter(
   (violation) => !violation.importPath.startsWith('@tauri-apps/'),
 )
 const referenceRuntimeViolations = walk(join(domainsRoot, 'references'))
-  .filter((path) => path.endsWith('.js') || path.endsWith('.vue'))
+  .filter((path) => path.endsWith('.js') || path.endsWith('.ts') || path.endsWith('.vue'))
   .flatMap((path) => {
     const source = readFileSync(path, 'utf8')
     return referenceRuntimePatterns
