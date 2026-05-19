@@ -218,7 +218,6 @@
   opacity: 1;
   transition:
     opacity var(--inline-dock-fade-duration, 210ms) ease,
-    transform var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
     border-left-color var(--inline-dock-surface-duration, 180ms) ease,
     background-color var(--inline-dock-surface-duration, 180ms) ease;
 }
@@ -230,9 +229,7 @@
   max-width: 100%;
   min-width: 0;
   opacity: 1;
-  transition:
-    opacity var(--inline-dock-fade-duration, 210ms) ease,
-    transform var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1));
+  transition: opacity var(--inline-dock-fade-duration, 210ms) ease;
 }
 
 .workbench-inline-dock-region.is-open > .inline-dock {
@@ -244,14 +241,12 @@
   width: 0;
   max-width: 0;
   opacity: 0;
-  transform: translateX(10px);
   pointer-events: none;
   border-left-color: transparent;
 }
 
 .workbench-inline-dock-region.is-collapsed > .inline-dock {
   opacity: 0;
-  transform: translateX(10px);
   transition-delay: 0ms;
 }
 

@@ -128,6 +128,11 @@ try {
       /transform\s*:\s*translateX\(0\)|will-change\s*:\s*[^;]*\btransform\b/,
       `${selector} must not keep an idle compositor layer during native window resize`,
     )
+    assert.doesNotMatch(
+      block,
+      /transition\s*:[^;]*\btransform\b/,
+      `${selector} must not transition transform in the resize-sensitive dock layer`,
+    )
   }
 
   const dockRegionBlock = cssRuleBlock(editorCss, '.workbench-inline-dock-region')
@@ -152,6 +157,17 @@ try {
     dockContentBlock,
     /min-width:\s*var\(--inline-dock-current-width/,
     'inline dock content must not keep a second min-width that can drift from the frame',
+  )
+
+  const dockCollapsedBlock = cssRuleBlock(editorCss, '.workbench-inline-dock-region.is-collapsed')
+  const dockCollapsedContentBlock = cssRuleBlock(
+    editorCss,
+    '.workbench-inline-dock-region.is-collapsed > .inline-dock',
+  )
+  assert.doesNotMatch(
+    `${dockCollapsedBlock}\n${dockCollapsedContentBlock}`,
+    /transform\s*:\s*translateX/,
+    'inline dock collapsed state must not offset the frame/content with translateX',
   )
 
   assert.match(
