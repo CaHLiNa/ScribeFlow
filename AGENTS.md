@@ -25,6 +25,8 @@
 
 ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作台。
 
+目标架构是：Vue 3 frontend、TypeScript bridge、Rust backend/runtime。当前实现仍以 JavaScript + Vue SFC 为主，TypeScript bridge 是明确迁移方向，不是已经完成的现状。
+
 主要代码边界：
 
 - `src/app`：desktop lifecycle、workspace/session orchestration、shell wiring
@@ -32,9 +34,9 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 - `src/composables`：UI interaction helpers 和可复用 side-effect workflow glue
 - `src/domains`：纯 presentation rules、labels、sorting、deterministic state derivation
 - `src/editor`：CodeMirror/editor runtime helpers、TextMate grammar/theme vendoring
-- `src/services`：Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
+- `src/services`：当前 JavaScript bridge；目标是 TypeScript Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
 - `src/stores`：Pinia screen state、orchestration、loading/error lifecycle、service calls
-- `src-tauri/src`：Rust runtime authority
+- `src-tauri/src`：Rust backend/runtime authority
 - `scripts`：boundary guards、runtime probes、bundle guard、release/version helpers
 
 `dist/`、`node_modules/`、`src-tauri/target/` 是生成物或依赖目录，不作为产品事实来源。
@@ -56,7 +58,20 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 
 ## 架构边界
 
-Rust 是 runtime authority，负责：
+目标边界：
+
+- Frontend：Vue 3 负责 product UI、interaction state、loading/error/empty states 和用户意图表达。
+- Bridge：TypeScript 负责 Tauri command wrappers、plugin/native event bridge、typed DTO adapters、compatibility boundary 和 side-effect entrypoints。
+- Backend/runtime：Rust 负责 filesystem、workspace、persistence、reference/plugin/runtime authority 和安全边界。
+
+当前实现状态：
+
+- `src/` 目前仍以 JavaScript + Vue SFC 为主；不要把现有 JS bridge 描述成已经迁移完成的 TypeScript bridge。
+- 存量 `src/services/**/*.js` 是过渡 bridge 层，仍必须遵守 bridge 边界。
+- 新增或大改 bridge 模块时，优先向 `.ts`、typed DTO 和显式 command contract 收敛；如果项目尚未具备 TypeScript build/typecheck gate，迁移任务必须同时补齐 `tsconfig`、Vite 处理和验证脚本。
+- 不能为了迁移 TypeScript，把 Rust authority 下沉到前端，或新增第二套 JS/TS backend center。
+
+Rust backend/runtime 负责：
 
 - filesystem、workspace access、path normalization、安全边界
 - persisted app/workspace/reference/plugin state
@@ -66,28 +81,37 @@ Rust 是 runtime authority，负责：
 - extension commands、capabilities、tasks、artifacts、outputs、views、secure settings
 - app update、workspace lifecycle、workbench state normalization
 
-Vue/JS 负责：
+Vue 3 frontend 负责：
 
 - UI rendering、local interaction state、loading/error/empty states
 - Pinia screen coordination 和 service call orchestration
-- DTO compatibility、native/plugin event presentation
+- native/plugin event presentation
 - 纯 presentation/domain derivation
+
+TypeScript bridge 目标负责：
+
+- Tauri `invoke` wrappers 和 Tauri plugin calls
+- Rust DTO 到 frontend shape 的 typed adapter
+- compatibility boundary 和 legacy payload normalization
+- native/plugin event subscription 与 cleanup
+- side-effect entrypoint；不得承接 Rust 应拥有的 policy
 
 Canonical layer 表：
 
 | Layer | 责任 |
 | --- | --- |
-| Vue UI | render product surfaces, receive props, emit user intent, show loading/error/empty states |
-| JS bridge | `src/services` wraps Tauri commands, plugins, native events and DTO compatibility |
+| Vue 3 frontend | render product surfaces, receive props, emit user intent, show loading/error/empty states |
+| TypeScript bridge target | `src/services` should evolve toward typed Tauri commands, plugins, native events and DTO compatibility |
+| Current JS bridge | existing `src/services/**/*.js` keeps the same bridge-only boundary until migrated |
 | Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
-| JS domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
-| Rust runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
+| Frontend domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
+| Rust backend/runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
 
 硬规则：
 
 - `src/components`、`src/stores`、`src/domains`、`src/composables` 不直接 import Tauri API。
-- Tauri `invoke`、Tauri plugin calls、native event bridge 只放在 `src/services`。
-- `src/services` 可以做 DTO compatibility，但不得成为第二套 backend。
+- Tauri `invoke`、Tauri plugin calls、native event bridge 只放在 `src/services`；目标形态是 typed TypeScript bridge。
+- `src/services` 可以做 DTO compatibility，但不得成为第二套 backend；当前 JS bridge 也受同一限制。
 - Pinia store 不拥有 filesystem、reference merge、LaTeX/Python runtime、plugin host 或 persisted schema policy。
 - `src/domains` 不接触 native bridge、persistence、filesystem、process authority。
 - Rust 返回 normalized result 后，前端再更新 UI state。
@@ -98,7 +122,8 @@ Canonical layer 表：
 Reference 方向是 Rust-first：
 
 - Rust 拥有 reference truth、snapshot normalization、query/search/filter、mutation outcome、import/export、PDF asset target resolution、citation formatting target lookup、Zotero sync result state。
-- JS 只保留 UI presentation、DTO readers、service bridge、Pinia coordination、临时 UI state。
+- 前端只保留 UI presentation、DTO readers/adapters、service bridge、Pinia coordination、临时 UI state。
+- Reference bridge 迁移目标是 typed TypeScript DTO adapter，不在 JS/TS 里重新实现 Rust query/mutation policy。
 - `src/domains/references/referenceStoreState.js` 只适合 UI state/display helper，不放 canonical policy。
 - `referenceResolvedQueryDto.js` 只适配 Rust DTO 给现有同步 UI/API，不重新实现 Rust query policy。
 
