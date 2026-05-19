@@ -61,7 +61,7 @@ function startDrag(e) {
   flex-shrink: 0;
   z-index: 10;
   position: relative;
-  transition: background 0.15s;
+  transition: none;
 }
 
 .resize-handle.vertical {
@@ -85,8 +85,7 @@ function startDrag(e) {
   opacity: 1;
   transition:
     opacity 140ms ease,
-    background-color 140ms ease,
-    width 140ms ease;
+    background-color 140ms ease;
 }
 
 .resize-handle.horizontal {
@@ -108,8 +107,7 @@ function startDrag(e) {
   opacity: 1;
   transition:
     opacity 140ms ease,
-    background-color 140ms ease,
-    height 140ms ease;
+    background-color 140ms ease;
 }
 
 .resize-handle:hover::before {
@@ -119,16 +117,22 @@ function startDrag(e) {
 
 .resize-handle.vertical:hover::before,
 .resize-handle.vertical.dragging::before {
-  width: 2px;
+  width: 1px;
 }
 
 .resize-handle.horizontal:hover::before,
 .resize-handle.horizontal.dragging::before {
-  height: 2px;
+  height: 1px;
 }
 
 .resize-handle.dragging::before {
   opacity: 1;
   background: color-mix(in srgb, var(--accent) 24%, transparent);
+}
+
+:global(body.scribeflow-shell-resizing) .resize-handle,
+:global(body.scribeflow-shell-resizing) .resize-handle::before {
+  transition: none !important;
+  animation: none !important;
 }
 </style>

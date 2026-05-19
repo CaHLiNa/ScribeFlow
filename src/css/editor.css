@@ -267,8 +267,10 @@
 
 body.scribeflow-shell-resizing .workbench-inline-dock-resize-slot,
 body.scribeflow-shell-resizing .workbench-inline-dock-region,
-body.scribeflow-shell-resizing .workbench-inline-dock-region > .inline-dock {
+body.scribeflow-shell-resizing .workbench-inline-dock-region > .inline-dock,
+body.scribeflow-shell-resizing .workbench-inline-dock-region .inline-dock * {
   transition: none !important;
+  animation: none !important;
 }
 
 @media (prefers-reduced-motion: reduce) {

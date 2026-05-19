@@ -7,6 +7,9 @@
       'has-reference-detail': referenceDetailOpen,
       'is-reference-detail-resizing': referenceDetailResizing,
     }"
+    :style="{
+      '--reference-detail-dock-width': referenceDetailOpen ? `${referenceDetailDockWidth}px` : '0px',
+    }"
     data-surface-context-guard="true"
   >
     <ReferenceLibraryMain
@@ -361,7 +364,10 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .reference-workbench {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0 var(--reference-detail-dock-width, 0px);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   height: 100%;
   min-width: 0;
   min-height: 0;

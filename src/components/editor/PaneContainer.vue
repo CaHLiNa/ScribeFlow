@@ -6,6 +6,9 @@
       'has-document-dock': isDocumentDockOpen,
       'is-document-dock-resizing': documentDockResizing,
     }"
+    :style="{
+      '--pane-document-dock-width': isDocumentDockOpen ? `${documentDockWidth}px` : '0px',
+    }"
   >
     <div class="pane-container__editor">
       <EditorPane
@@ -223,7 +226,10 @@ onUnmounted(() => {
 
 <style scoped>
 .pane-container {
-  display: flex;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 0 var(--pane-document-dock-width, 0px);
+  grid-template-rows: minmax(0, 1fr);
+  align-items: stretch;
   height: 100%;
   min-width: 0;
   min-height: 0;
@@ -232,7 +238,9 @@ onUnmounted(() => {
 }
 
 .pane-container__editor {
-  flex: 1 1 0;
+  grid-column: 1;
+  grid-row: 1;
+  width: 100%;
   min-width: 0;
   min-height: 0;
   overflow: hidden;

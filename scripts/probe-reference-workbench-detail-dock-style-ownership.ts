@@ -31,6 +31,16 @@ assert.match(
   /@resize="handleReferenceDetailResize"[\s\S]*@resize-snap="handleReferenceDetailResizeSnap"/,
   'ReferenceLibraryWorkbench must keep reference dock resize orchestration wired',
 )
+assert.match(
+  workbenchSource,
+  /'--reference-detail-dock-width': referenceDetailOpen \? `\$\{referenceDetailDockWidth\}px` : '0px'/,
+  'ReferenceLibraryWorkbench must expose the detail dock width as a shell grid slot variable',
+)
+assert.match(
+  workbenchStyle,
+  /\.reference-workbench\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) 0 var\(--reference-detail-dock-width, 0px\)/,
+  'ReferenceLibraryWorkbench must use explicit grid slots for list, resize handle, and detail dock',
+)
 assert.doesNotMatch(
   workbenchSource,
   /import InlineDockFrame from '\.\.\/layout\/InlineDockFrame\.vue'|import InlineDockTabBar from '\.\.\/layout\/InlineDockTabBar\.vue'/,

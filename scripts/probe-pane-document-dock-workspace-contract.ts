@@ -116,6 +116,8 @@ try {
   const editorCss = await readFile('src/css/editor.css', 'utf8')
   const layoutSource = await readFile('src/composables/useAppShellLayout.ts', 'utf8')
   const paneContainerSource = await readFile('src/components/editor/PaneContainer.vue', 'utf8')
+  const resizeHandleSource = await readFile('src/components/layout/ResizeHandle.vue', 'utf8')
+  const paneContainerStyle = paneContainerSource.match(/<style scoped>[\s\S]*?<\/style>/)?.[0] || ''
   for (const selector of [
     '.workbench-inline-dock-region',
     '.workbench-inline-dock-region > .inline-dock',
@@ -167,11 +169,36 @@ try {
     /scheduleDocumentDockWidth|scheduleReferenceDockWidth|DOCUMENT_DOCK_WIDTH_MOTION_KEY|REFERENCE_DOCK_WIDTH_MOTION_KEY/,
     'right inline dock widths must not be delayed through the shell motion scheduler',
   )
+  assert.match(
+    editorCss,
+    /body\.scribeflow-shell-resizing \.workbench-inline-dock-region \.inline-dock \*[\s\S]*transition:\s*none !important;[\s\S]*animation:\s*none !important;/,
+    'inline dock descendants must not keep independent transitions during live resize',
+  )
+  assert.doesNotMatch(
+    resizeHandleSource,
+    /width 140ms ease|height 140ms ease/,
+    'resize handle divider thickness must not animate during drag',
+  )
+  assert.match(
+    resizeHandleSource,
+    /:global\(body\.scribeflow-shell-resizing\) \.resize-handle,[\s\S]*transition:\s*none !important;[\s\S]*animation:\s*none !important;/,
+    'resize handle transitions must be disabled while the shell is resizing',
+  )
 
   assert.match(
     paneContainerSource,
-    /\.pane-container__editor\s*\{[\s\S]*flex:\s*1 1 0;/,
-    'editor column must use a zero flex basis so dock resizing is not driven by editor intrinsic width',
+    /'--pane-document-dock-width': isDocumentDockOpen \? `\$\{documentDockWidth\}px` : '0px'/,
+    'document dock width must be exposed as a shell grid slot variable',
+  )
+  assert.match(
+    paneContainerStyle,
+    /\.pane-container\s*\{[\s\S]*display:\s*grid;[\s\S]*grid-template-columns:\s*minmax\(0, 1fr\) 0 var\(--pane-document-dock-width, 0px\)/,
+    'PaneContainer must use explicit grid slots for editor, resize handle, and document dock',
+  )
+  assert.match(
+    paneContainerStyle,
+    /\.pane-container__editor\s*\{[\s\S]*grid-column:\s*1;/,
+    'editor column must occupy the stable grid slot instead of flexing from intrinsic width',
   )
 
   console.log('pane document dock workspace contract probe passed')
