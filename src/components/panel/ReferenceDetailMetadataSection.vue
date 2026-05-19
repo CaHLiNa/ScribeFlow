@@ -161,11 +161,6 @@
           <UiButton variant="secondary" size="sm" :disabled="!canOpenPdf" @click="$emit('reveal-pdf')">
             <template #leading><IconFolder :size="14"/></template> Finder
           </UiButton>
-          <ExtensionActionButtons
-            v-if="canOpenPdf"
-            surface="reference.pdf.actions"
-            :target="pdfExtensionActionTarget"
-          />
           <UiButton variant="secondary" size="sm" @click="$emit('attach-pdf')">
             <template #leading><IconRefresh :size="14"/></template> {{ t('Replace') }}
           </UiButton>
@@ -184,7 +179,6 @@ import {
   IconX,
 } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
-import ExtensionActionButtons from '../extensions/ExtensionActionButtons.vue'
 import UiButton from '../shared/ui/UiButton.vue'
 import UiInput from '../shared/ui/UiInput.vue'
 
@@ -208,7 +202,6 @@ defineProps({
   canOpenPdf: { type: Boolean, default: false },
   collectionLabel: { type: Function, required: true },
   draft: { type: Object, required: true },
-  pdfExtensionActionTarget: { type: Object, default: () => ({}) },
   tagInput: { type: String, default: '' },
 })
 

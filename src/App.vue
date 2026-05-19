@@ -53,22 +53,6 @@
 
     <template #overlays>
       <SetupWizard :visible="setupWizardVisible" @close="setupWizardVisible = false" />
-
-      <ExtensionCommandPalette
-        :visible="commandPaletteVisible"
-        :target="commandPaletteTarget"
-        :context="extensionCommandContext"
-        @close="commandPaletteVisible = false"
-      />
-
-      <ExtensionWindowPrompt
-        :visible="extensionWindowUi.visible"
-        :busy="extensionWindowUi.busy"
-        :request="extensionWindowUi.pendingRequest"
-        @cancel="void handleExtensionWindowPromptCancel()"
-        @submit="(value) => void handleExtensionWindowPromptSubmit(value)"
-      />
-
       <ToastContainer />
     </template>
   </AppShellFrame>
@@ -83,27 +67,17 @@ import { useDocumentWorkflowStore } from './stores/documentWorkflow'
 import { useLinksStore } from './stores/links'
 import { useLatexStore } from './stores/latex'
 import { useReferencesStore } from './stores/references'
-import { useExtensionsStore } from './stores/extensions'
-import { useExtensionWindowUiStore } from './stores/extensionWindowUi'
-import { useToastStore } from './stores/toast'
 
 import AppShellFrame from './components/layout/AppShellFrame.vue'
 import ToastContainer from './components/layout/ToastContainer.vue'
-import ExtensionCommandPalette from './components/extensions/ExtensionCommandPalette.vue'
-import ExtensionWindowPrompt from './components/extensions/ExtensionWindowPrompt.vue'
 import { useI18n } from './i18n'
 import {
   getReferenceSectionLabelKey,
   getReferenceSourceLabelKey,
 } from './domains/references/referencePresentation.ts'
-import {
-  buildSurfaceContext,
-} from './domains/extensions/extensionContributionRegistry'
-import { resolveExtensionTargetContext } from './domains/extensions/extensionTargetContext'
 import { resolvePaneDocumentDockOpen } from './domains/editor/paneDocumentDockRuntime.ts'
 import { useAppShellLayout } from './composables/useAppShellLayout'
 import { useAppShellEventBridge } from './app/shell/useAppShellEventBridge'
-import { useAppExtensionRuntimeBridge } from './app/shell/useAppExtensionRuntimeBridge'
 import { applyAppWindowConstraints } from './app/shell/useAppWindowConstraints'
 import { useAppTeardown } from './app/teardown/useAppTeardown'
 import { useWorkspaceLifecycle } from './app/workspace/useWorkspaceLifecycle'
@@ -130,14 +104,10 @@ const workflowStore = useDocumentWorkflowStore()
 const linksStore = useLinksStore()
 const latexStore = useLatexStore()
 const referencesStore = useReferencesStore()
-const extensionsStore = useExtensionsStore()
-const extensionWindowUi = useExtensionWindowUiStore()
-const toastStore = useToastStore()
 const { t } = useI18n()
 void applyAppWindowConstraints()
 
 const isZenMode = ref(false)
-const commandPaletteVisible = ref(false)
 
 const supportsRightSidebar = computed(() => workspace.isOpen && workspace.isWorkspaceSurface)
 const leftSidebarVisible = computed(
@@ -232,25 +202,6 @@ const currentDocumentLabel = computed(() => {
   }
   return basenamePath(activePath) || activePath
 })
-const commandPaletteTarget = computed(() => {
-  return resolveExtensionTargetContext({
-    workspaceLeftSidebarPanel: workspace.leftSidebarPanel,
-    selectedReference: referencesStore.selectedReference,
-    activeTab: editorStore.activeTab,
-  })
-})
-const extensionCommandContext = computed(() =>
-  buildSurfaceContext(commandPaletteTarget.value, {
-    workbench: {
-      surface: workspace.isSettingsSurface ? 'settings' : 'workspace',
-      panel: workspace.leftSidebarPanel || '',
-      activeView: workspace.isSettingsSurface ? 'settings' : workspace.leftSidebarPanel || 'files',
-      hasWorkspace: workspace.isOpen,
-      workspaceFolder: workspace.path || '',
-    },
-  })
-)
-
 async function selectWorkbenchPanel(panel) {
   await workspace.openWorkspaceSurface()
   await workspace.setLeftSidebarPanel(panel)
@@ -306,19 +257,6 @@ function clearZenMode() {
     isZenMode.value = false
   }
 }
-
-const {
-  handleExtensionWindowPromptCancel,
-  handleExtensionWindowPromptSubmit,
-} = useAppExtensionRuntimeBridge({
-  commandPaletteVisible,
-  commandPaletteTarget,
-  extensionCommandContext,
-  extensionWindowUi,
-  extensionsStore,
-  toastStore,
-  t,
-})
 
 onMounted(() => {
   if (isMac) {

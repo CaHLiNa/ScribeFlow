@@ -26,7 +26,6 @@ const DEFAULT_REFERENCE_DOCK_PAGE: &str = "details";
 const DOCUMENT_DOCK_FILE_PAGE: &str = "file";
 const DOCUMENT_DOCK_PROBLEMS_PAGE: &str = "problems";
 const DOCUMENT_DOCK_REFERENCES_PAGE: &str = "references";
-const DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX: &str = "extension:";
 const REFERENCE_DOCK_PDF_PAGE: &str = "pdf";
 const REFERENCE_DOCK_CITED_IN_PAGE: &str = "cited-in";
 
@@ -254,11 +253,6 @@ pub fn normalize_workbench_inspector_panel(surface: &str, panel: &str) -> String
 
 pub fn normalize_document_dock_page(value: &str) -> String {
     let normalized = value.trim();
-    if normalized.starts_with(DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX)
-        && normalized.len() > DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX.len()
-    {
-        return normalized.to_string();
-    }
     match normalized {
         DOCUMENT_DOCK_FILE_PAGE => DOCUMENT_DOCK_FILE_PAGE.to_string(),
         DOCUMENT_DOCK_PROBLEMS_PAGE => DOCUMENT_DOCK_PROBLEMS_PAGE.to_string(),
@@ -307,13 +301,6 @@ pub fn workbench_dock_page_contract() -> WorkbenchDockPageContract {
                     DOCUMENT_DOCK_REFERENCES_PAGE,
                     true,
                     false,
-                    false,
-                    DEFAULT_DOCUMENT_DOCK_PAGE,
-                ),
-                dock_page_definition(
-                    DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX,
-                    false,
-                    true,
                     false,
                     DEFAULT_DOCUMENT_DOCK_PAGE,
                 ),
@@ -566,10 +553,7 @@ mod tests {
             normalize_workbench_sidebar_panel("settings", "references"),
             "references"
         );
-        assert_eq!(
-            normalize_workbench_sidebar_panel("workspace", "extension:example.tools"),
-            "files"
-        );
+        assert_eq!(normalize_workbench_sidebar_panel("workspace", "tools"), "files");
     }
 
     #[test]
@@ -613,7 +597,7 @@ mod tests {
             "rightSidebarPanel": "outline",
             "documentDockOpen": "yes",
             "referenceDockOpen": null,
-            "documentDockActivePage": "extension:example.tools",
+            "documentDockActivePage": "unknown",
             "referenceDockActivePage": "missing"
         })));
 
@@ -624,10 +608,7 @@ mod tests {
         assert_eq!(normalized.right_sidebar_panel, "dock");
         assert!(!normalized.document_dock_open);
         assert!(!normalized.reference_dock_open);
-        assert_eq!(
-            normalized.document_dock_active_page,
-            "extension:example.tools"
-        );
+        assert_eq!(normalized.document_dock_active_page, "preview");
         assert_eq!(normalized.reference_dock_active_page, "details");
     }
 
@@ -678,7 +659,7 @@ mod tests {
         assert_eq!(contract.reference.default_page, "details");
         assert_eq!(
             document_page_ids,
-            vec!["preview", "references", "extension:", "problems", "file"]
+            vec!["preview", "references", "problems", "file"]
         );
         assert_eq!(reference_page_ids, vec!["details", "cited-in", "pdf"]);
         assert_eq!(contract.document.pages[0].fallback_page, "file");
@@ -687,15 +668,10 @@ mod tests {
         assert!(contract.document.pages[1].permanent);
         assert!(!contract.document.pages[1].dynamic);
         assert!(!contract.document.pages[1].closeable);
-        assert_eq!(contract.document.pages[2].id, "extension:");
         assert_eq!(contract.document.pages[2].fallback_page, "preview");
         assert!(!contract.document.pages[2].permanent);
         assert!(contract.document.pages[2].dynamic);
-        assert!(!contract.document.pages[2].closeable);
-        assert_eq!(contract.document.pages[3].fallback_page, "preview");
-        assert!(!contract.document.pages[3].permanent);
-        assert!(contract.document.pages[3].dynamic);
-        assert!(contract.document.pages[3].closeable);
+        assert!(contract.document.pages[2].closeable);
         assert_eq!(contract.reference.pages[1].fallback_page, "details");
         assert!(!contract.reference.pages[1].permanent);
         assert!(contract.reference.pages[1].dynamic);
@@ -708,10 +684,6 @@ mod tests {
         assert_eq!(normalize_document_dock_page("file"), "file");
         assert_eq!(normalize_document_dock_page("problems"), "problems");
         assert_eq!(normalize_document_dock_page("references"), "references");
-        assert_eq!(
-            normalize_document_dock_page("extension:examplePdfExtension.tools"),
-            "extension:examplePdfExtension.tools"
-        );
         assert_eq!(normalize_document_dock_page("unknown"), "preview");
         assert_eq!(normalize_reference_dock_page("pdf"), "pdf");
         assert_eq!(normalize_reference_dock_page("cited-in"), "cited-in");

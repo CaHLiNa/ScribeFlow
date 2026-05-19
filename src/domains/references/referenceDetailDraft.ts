@@ -82,14 +82,6 @@ export function resolveReferenceDetailPdfPath(reference = null) {
   return String(reference?.pdfPath || '').trim()
 }
 
-export function buildReferenceDetailPdfExtensionTarget(reference = null) {
-  return {
-    kind: 'referencePdf',
-    referenceId: String(reference?.id || ''),
-    path: resolveReferenceDetailPdfPath(reference),
-  }
-}
-
 export function buildReferenceDetailHeroMetaItems(draft = {}) {
   return [
     draft?.year ? String(draft.year) : '',

@@ -14,18 +14,6 @@ mod document_workflow_session;
 mod document_workflow_ui_state;
 mod document_workspace_preview_state;
 mod editor_session_runtime;
-mod extension_artifacts;
-mod extension_capability_contract;
-mod extension_commands;
-mod extension_host;
-mod extension_manifest;
-mod extension_outputs;
-mod extension_permissions;
-mod extension_registry;
-mod extension_secret_settings;
-mod extension_settings;
-mod extension_tasks;
-mod extension_views;
 mod external_links;
 mod file_types;
 mod fs_commands;
@@ -75,33 +63,6 @@ mod workspace_protocol;
 mod workspace_protocol_url;
 
 pub use desktop_main_path_runtime_probe::run_desktop_main_path_runtime_contract_probe;
-pub use extension_artifacts::ExtensionArtifact;
-pub use extension_commands::record_extension_result_for_probe as extension_command_record_result_for_probe;
-pub use extension_host::{
-    activate_extension as extension_host_activate_entry,
-    activate_extension_by_id_for_probe as extension_host_activate_by_id_for_probe,
-    build_extension_invocation_envelope as extension_host_build_invocation_envelope_for_probe,
-    cancel_window_inputs_for_extension_for_probe as extension_host_cancel_window_inputs_for_probe,
-    deactivate_extension_for_probe as extension_host_deactivate_for_probe,
-    invoke_extension_host as extension_host_invoke_request,
-    invoke_extension_host_for_probe as extension_host_invoke_probe_request,
-    invoke_extension_host_with_task_runtime_for_probe as extension_host_invoke_probe_request_with_task_runtime,
-    spawned_process_count_for_probe as extension_host_spawned_process_count_for_probe,
-    ExtensionHostCapabilityResult, ExtensionHostInvocationEnvelope, ExtensionHostRequest,
-    ExtensionHostResponse, ExtensionHostState,
-};
-pub use extension_outputs::ExtensionCapabilityOutput;
-pub use extension_settings::{
-    load_extension_runtime_state_snapshot as extension_settings_load_runtime_state_snapshot_for_probe,
-    load_extension_settings_with_state as extension_settings_load_with_state_for_probe,
-    save_extension_settings as extension_settings_save_for_probe, ExtensionSettings,
-};
-pub use extension_tasks::cancel_active_tasks_for_extension_for_probe as extension_task_cancel_extension_for_probe;
-pub use extension_tasks::cancel_task_for_runtime as extension_task_cancel_for_probe;
-pub use extension_tasks::create_command_task_for_probe as extension_task_create_command_for_probe;
-pub use extension_tasks::ExtensionTaskRuntimeState;
-
-use tauri::Manager;
 
 /// Enrich PATH with common tool locations so production .app bundles
 /// can find Python, R, Jupyter, Homebrew binaries, etc.
@@ -126,16 +87,8 @@ fn enrich_path() {
 }
 
 pub fn run() {
-    if extension_host::is_extension_host_mode() {
-        extension_host::run_extension_host_stdio_loop()
-            .expect("error while running extension host sidecar");
-        return;
-    }
-
     #[cfg(unix)]
     enrich_path();
-
-    let _ = extension_tasks::recover_interrupted_tasks_on_startup();
 
     let builder = tauri::Builder::default()
         .register_uri_scheme_protocol("scribeflow-workspace", |ctx, request| {
@@ -149,22 +102,11 @@ pub fn run() {
         .manage(latex_project_graph::LatexProjectGraphCacheState::default())
         .manage(fs_watch_runtime::WorkspaceTreeWatchState::default())
         .manage(security::WorkspaceScopeState::default())
-        .manage(workspace_access::WorkspaceAccessState::default())
-        .manage(extension_tasks::ExtensionTaskRuntimeState::default())
-        .manage(extension_host::ExtensionHostState::default());
+        .manage(workspace_access::WorkspaceAccessState::default());
 
     #[cfg(target_os = "macos")]
     let builder = builder
         .setup(|app| {
-            let extension_host_state = app.state::<extension_host::ExtensionHostState>();
-            let extension_task_state = app.state::<extension_tasks::ExtensionTaskRuntimeState>();
-            extension_host::bind_extension_host_app_handle(
-                extension_host_state.inner(),
-                app.handle().clone(),
-            );
-            extension_task_state
-                .inner()
-                .bind_app_handle(app.handle().clone());
             let _ = macos_shell::sync_window_transparency(app.handle().clone());
             Ok(())
         })
@@ -172,16 +114,7 @@ pub fn run() {
         .on_menu_event(macos_shell::handle_menu_event);
 
     #[cfg(not(target_os = "macos"))]
-    let builder = builder.setup(|app| {
-        let extension_host_state = app.state::<extension_host::ExtensionHostState>();
-        let extension_task_state = app.state::<extension_tasks::ExtensionTaskRuntimeState>();
-        extension_host::bind_extension_host_app_handle(
-            extension_host_state.inner(),
-            app.handle().clone(),
-        );
-        extension_task_state
-            .inner()
-            .bind_app_handle(app.handle().clone());
+    let builder = builder.setup(|_app| {
         Ok(())
     });
 
@@ -225,29 +158,6 @@ pub fn run() {
             fs_commands::get_global_config_dir,
             fs_commands::get_home_dir,
             i18n_runtime::i18n_runtime_load,
-            // Extension platform runtime, registry, tasks, artifacts, and settings.
-            extension_registry::extension_registry_list,
-            extension_manifest::extension_registry_validate_manifest,
-            extension_host::extension_host_status,
-            extension_host::extension_host_activate,
-            extension_host::extension_host_cancel_window_inputs,
-            extension_host::extension_host_deactivate,
-            extension_host::extension_host_respond_ui_request,
-            extension_host::extension_host_resolve_host_call,
-            extension_host::extension_host_notify_view_selection,
-            extension_host::extension_host_update_settings,
-            extension_commands::extension_command_execute,
-            extension_commands::extension_capability_invoke,
-            extension_views::extension_view_resolve,
-            extension_tasks::extension_task_list,
-            extension_tasks::extension_task_get,
-            extension_tasks::extension_task_cancel,
-            extension_tasks::extension_task_cancel_extension,
-            extension_artifacts::extension_artifact_open,
-            extension_artifacts::extension_artifact_reveal,
-            extension_artifacts::extension_artifact_read_text,
-            extension_settings::extension_settings_load,
-            extension_settings::extension_settings_save,
             // Reference library, citation, import/export, PDF metadata, and Zotero.
             references_backend::references_library_read_or_create,
             references_backend::references_library_load_workspace,

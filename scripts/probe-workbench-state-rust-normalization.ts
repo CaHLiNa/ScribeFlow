@@ -39,9 +39,6 @@ function boolField(payload, key, fallback) {
 
 function normalizeDocumentDockPage(value = '') {
   const normalized = String(value || '').trim()
-  if (normalized.startsWith('extension:') && normalized.length > 'extension:'.length) {
-    return normalized
-  }
   return ['file', 'problems', 'references'].includes(normalized) ? normalized : 'preview'
 }
 
@@ -116,7 +113,7 @@ try {
     rightSidebarPanel: 'outline',
     documentDockOpen: 'yes',
     referenceDockOpen: null,
-    documentDockActivePage: 'extension:example.tools',
+    documentDockActivePage: 'unknown',
     referenceDockActivePage: 'missing',
   }
 
@@ -137,7 +134,7 @@ try {
     rightSidebarPanel: 'dock',
     documentDockOpen: false,
     referenceDockOpen: false,
-    documentDockActivePage: 'extension:example.tools',
+    documentDockActivePage: 'preview',
     referenceDockActivePage: 'details',
   })
   assert.deepEqual(invalidNormalized, {

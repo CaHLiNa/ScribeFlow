@@ -6,7 +6,6 @@ import { useLinksStore } from '../../stores/links'
 import { useLatexStore } from '../../stores/latex'
 import { useReferencesStore } from '../../stores/references'
 import { useDocumentWorkflowStore } from '../../stores/documentWorkflow'
-import { useExtensionsStore } from '../../stores/extensions'
 import { useToastStore } from '../../stores/toast'
 import { useUxStatusStore } from '../../stores/uxStatus'
 import { useI18n } from '../../i18n'
@@ -31,7 +30,6 @@ export function useWorkspaceLifecycle() {
   const latexStore = useLatexStore()
   const referencesStore = useReferencesStore()
   const workflowStore = useDocumentWorkflowStore()
-  const extensionsStore = useExtensionsStore()
   const toastStore = useToastStore()
   const uxStatusStore = useUxStatusStore()
   const { t } = useI18n()
@@ -228,9 +226,6 @@ export function useWorkspaceLifecycle() {
 
       workspace.trackWorkspaceBootstrap(bootstrapPromise)
       await bootstrapPromise
-      await extensionsStore.refreshRegistry({ forceSettingsReload: true }).catch(() => {})
-      await extensionsStore.refreshTasks().catch(() => {})
-
       uxStatusStore.success(t('Workspace ready'), { duration: 1800 })
     } catch (error) {
       console.error('Failed to open workspace:', error)
@@ -269,8 +264,6 @@ export function useWorkspaceLifecycle() {
     latexStore.cleanup()
     await referencesStore.cleanup()
     workflowStore.cleanup()
-    await extensionsStore.teardownWorkspaceRuntimeSlots(closingWorkspacePath).catch(() => {})
-    extensionsStore.resetWorkspaceSessionState()
     await workspace.closeWorkspace()
     void releaseWorkspaceBookmark(closingWorkspacePath)
     return true

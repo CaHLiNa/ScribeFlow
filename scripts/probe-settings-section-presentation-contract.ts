@@ -12,7 +12,7 @@ import {
 
 assert.deepEqual(
   SETTINGS_SECTION_DEFINITIONS.map((item) => item.id),
-  ['general', 'editor', 'zotero', 'system', 'extensions', 'updates'],
+  ['general', 'editor', 'zotero', 'system', 'updates'],
 )
 assert.equal(normalizeSettingsSectionId(''), 'general')
 assert.equal(normalizeSettingsSectionId(' environment '), 'system')

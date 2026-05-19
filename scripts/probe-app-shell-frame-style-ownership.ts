@@ -38,7 +38,7 @@ assert.match(
 )
 assert.match(
   appSource,
-  /<template #overlays>[\s\S]*<ExtensionCommandPalette[\s\S]*<ExtensionWindowPrompt[\s\S]*<ToastContainer/,
+  /<template #overlays>[\s\S]*<SetupWizard[\s\S]*<ToastContainer/,
   'App.vue must keep overlays composed through the shell frame slot',
 )
 assert.doesNotMatch(

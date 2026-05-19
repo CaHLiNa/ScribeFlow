@@ -18,7 +18,6 @@ import {
   IconFileTypePdf,
   IconMath,
   IconNotebook,
-  IconPlug,
   IconPhoto,
   IconSparkles,
   IconTable,
@@ -26,13 +25,11 @@ import {
 } from '@tabler/icons-vue'
 import {
   DOCUMENT_DOCK_FILE_PAGE,
-  DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX,
   DOCUMENT_DOCK_PROBLEMS_PAGE,
   DOCUMENT_DOCK_PREVIEW_PAGE,
   DOCUMENT_DOCK_REFERENCES_PAGE,
   documentDockFileKey,
 } from '../../domains/editor/documentDockPages.ts'
-import { buildExtensionPluginContainerPresentation } from '../../domains/extensions/extensionPluginContainerPresentation.ts'
 import { createInlineDockPageRegistry } from '../../domains/workbench/inlineDockPageRegistry.ts'
 import { getDocumentWorkflowKind } from '../../domains/document/documentWorkflowPolicy.ts'
 import { getFileIconName } from '../../utils/fileTypes.ts'
@@ -42,7 +39,6 @@ const DocumentPreviewDock = defineAsyncComponent(() => import('./DocumentPreview
 const DocumentDockFileSurface = defineAsyncComponent(() => import('./DocumentDockFileSurface.vue'))
 const DocumentProblemsPanel = defineAsyncComponent(() => import('./DocumentProblemsPanel.vue'))
 const DocumentReferencesPanel = defineAsyncComponent(() => import('./DocumentReferencesPanel.vue'))
-const DocumentPluginsPanel = defineAsyncComponent(() => import('./DocumentPluginsPanel.vue'))
 
 const ICON_COMPONENTS = {
   IconFile,
@@ -168,40 +164,6 @@ export const documentDockPageRegistry = createInlineDockPageRegistry([
           paneId: context.paneId,
         },
       }
-    },
-  },
-  {
-    id: DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX,
-    resolve(context = {}) {
-      const containers = Array.isArray(context.pluginContainers) ? context.pluginContainers : []
-      if (containers.length === 0) return null
-
-      return containers.map((container) => {
-        const presentation = buildExtensionPluginContainerPresentation(
-          container,
-          {
-            badgeValue: container.badgeValue,
-            badgeTooltip: container.badgeTooltip,
-          },
-          context.t,
-        )
-        return {
-          key: container.panelId,
-          type: container.panelId || `${DOCUMENT_DOCK_PLUGIN_PAGE_PREFIX}${container.id || ''}`,
-          icon: IconPlug,
-          title: presentation.title,
-          ariaLabel: presentation.title,
-          tabClass: 'document-dock__preview-tab document-dock__preview-tab--icon',
-          labelClass: 'document-dock__preview-label',
-          iconClass: 'document-dock__preview-icon',
-          closeable: false,
-          component: DocumentPluginsPanel,
-          componentProps: {
-            filePath: context.filePath,
-            panelId: container.panelId,
-          },
-        }
-      })
     },
   },
   {

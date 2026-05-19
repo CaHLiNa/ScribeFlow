@@ -322,13 +322,6 @@ fn load_or_create_snapshot(params: &ReferenceLibraryReadParams) -> Result<Value,
     Ok(initial)
 }
 
-#[cfg_attr(test, allow(dead_code))]
-pub(crate) fn load_reference_library_snapshot(global_config_dir: &str) -> Result<Value, String> {
-    load_or_create_snapshot(&ReferenceLibraryReadParams {
-        global_config_dir: global_config_dir.to_string(),
-    })
-}
-
 pub(crate) fn references_library_load_workspace_typed(
     params: ReferenceLibraryLoadWorkspaceParams,
 ) -> Result<Value, String> {

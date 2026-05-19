@@ -38,22 +38,6 @@ pub fn bin_dir() -> Result<PathBuf, String> {
     Ok(dir)
 }
 
-pub fn extensions_dir() -> Result<PathBuf, String> {
-    let dir = data_root_dir()?.join("extensions");
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    }
-    Ok(dir)
-}
-
-pub fn extension_tasks_dir() -> Result<PathBuf, String> {
-    let dir = data_root_dir()?.join("extension-tasks");
-    if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| e.to_string())?;
-    }
-    Ok(dir)
-}
-
 pub fn candidate_bin_dirs() -> Vec<PathBuf> {
     let mut dirs = Vec::new();
 

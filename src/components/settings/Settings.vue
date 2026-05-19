@@ -19,7 +19,6 @@ const SettingsEditor = defineAsyncComponent(() => import('./SettingsEditor.vue')
 const SettingsEnvironment = defineAsyncComponent(() => import('./SettingsEnvironment.vue'))
 const SettingsUpdates = defineAsyncComponent(() => import('./SettingsUpdates.vue'))
 const SettingsZotero = defineAsyncComponent(() => import('./SettingsZotero.vue'))
-const SettingsExtensions = defineAsyncComponent(() => import('./SettingsExtensions.vue'))
 
 const workspace = useWorkspaceStore()
 const { t } = useI18n()
@@ -28,7 +27,6 @@ const sectionComponents = {
   general: SettingsGeneral,
   editor: SettingsEditor,
   system: SettingsEnvironment,
-  extensions: SettingsExtensions,
   updates: SettingsUpdates,
   zotero: SettingsZotero,
 }

@@ -34,7 +34,7 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 - `src/composables`：UI interaction helpers 和可复用 side-effect workflow glue
 - `src/domains`：纯 presentation rules、labels、sorting、deterministic state derivation
 - `src/editor`：CodeMirror/editor runtime helpers、TextMate grammar/theme vendoring
-- `src/services`：TypeScript Tauri bridge、plugin/native event bridge、DTO compatibility、side-effect boundary
+- `src/services`：TypeScript Tauri bridge、native event bridge、DTO compatibility、side-effect boundary
 - `src/stores`：Pinia screen state、orchestration、loading/error lifecycle、service calls
 - `src-tauri/src`：Rust backend/runtime authority
 - `scripts`：Node TypeScript boundary guards、runtime probes、bundle guard、runtime artifact build、release/version helpers
@@ -52,24 +52,21 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 - 预览 Markdown、编译 LaTeX、查看 PDF、运行 Python
 - 管理 references，支持 BibTeX、PDF metadata、Zotero
 - 插入、同步、追踪 Markdown / LaTeX citations
-- 管理 extension/plugin lifecycle、settings、runtime commands 和 right-sidebar surfaces
-- 将 PDF actions、commands、capabilities、view reveal requests 默认路由到 plugin-owned document right sidebar tab
-- 支持 plugin task timeline、artifacts、outputs、result entries、host prompts、secure settings 和 workspace-scoped runtime state
+
+Extension / plugin 平台已从当前产品主路径移除；不要重新创建 extension host、extension registry、extension settings、extension tasks、extension artifacts、内置示例 extensions 或相关 probes，除非用户明确要求。
 
 ## 架构边界
 
 目标边界：
 
 - Frontend：Vue 3 负责 product UI、interaction state、loading/error/empty states 和用户意图表达。
-- Bridge：TypeScript 负责 Tauri command wrappers、plugin/native event bridge、typed DTO adapters、compatibility boundary 和 side-effect entrypoints。
-- Backend/runtime：Rust 负责 filesystem、workspace、persistence、reference/plugin/runtime authority 和安全边界。
+- Bridge：TypeScript 负责 Tauri command wrappers、native event bridge、typed DTO adapters、compatibility boundary 和 side-effect entrypoints。
+- Backend/runtime：Rust 负责 filesystem、workspace、persistence、reference/runtime authority 和安全边界。
 
 当前实现状态：
 
-- `src/`、`scripts/`、内置 extension host 和仓内示例 extension 入口均以 TypeScript 为源码形态；不要再新增手写 `.js` / `.mjs` 仓库源码文件。
-- runtime 入口必须保持可直接执行的 generated artifacts：`src-tauri/resources/extension-host/extension-host.mjs` 和 `.scribeflow/extensions/*/dist/extension.js` 由 `npm run build:extension-runtime` 从 `.mts` / `.ts` 源码生成，并作为 Tauri runtime / plugin manifest contract 随仓库和打包资源存在。
-- `npm run dev`、`npm run build` 和标准验证前必须能重新生成这些 runtime artifacts；不要让 Rust host、plugin manifest 或 probe 直接依赖 Node 的 TypeScript strip-types 能力。
-- `src/services/tauriBridge.ts` 是唯一 direct Tauri/native plugin bridge authority。
+- `src/` 和 `scripts/` 均以 TypeScript 为源码形态；不要新增手写 `.js` / `.mjs` 仓库源码文件。
+- `src/services/tauriBridge.ts` 是唯一 direct Tauri/native bridge authority。
 - 存量 `src/services/**/*.ts` 可以作为 feature-specific service wrappers / DTO adapters 存在，但必须通过 `tauriBridge.ts` 触达 native runtime。
 - 新增或大改 native bridge capability 时，优先落在 `tauriBridge.ts` 或 typed DTO adapter，并保持显式 command contract、`tsconfig.bridge.json` / `tsconfig.app.json` / `tsconfig.tools.json` 和 `npm run verify:bridge` 覆盖。
 - 不能为了迁移 TypeScript，把 Rust authority 下沉到前端，或新增第二套 frontend backend center。
@@ -77,26 +74,24 @@ ScribeFlow 是一个 local-first 的 Tauri 2 桌面学术写作与研究工作�
 Rust backend/runtime 负责：
 
 - filesystem、workspace access、path normalization、安全边界
-- persisted app/workspace/reference/plugin state
+- persisted app/workspace/reference state
 - references normalization、query、mutation、import/export、PDF assets、Zotero sync
 - LaTeX/Python/Markdown runtime contracts
-- plugin discovery、manifest validation、permissions、extension host lifecycle
-- extension commands、capabilities、tasks、artifacts、outputs、views、secure settings
 - app update、workspace lifecycle、workbench state normalization
 
 Vue 3 frontend 负责：
 
 - UI rendering、local interaction state、loading/error/empty states
 - Pinia screen coordination 和 service call orchestration
-- native/plugin event presentation
+- native event presentation
 - 纯 presentation/domain derivation
 
 TypeScript bridge 目标负责：
 
-- Tauri `invoke` wrappers 和 Tauri plugin calls
+- Tauri `invoke` wrappers 和 Tauri 官方 plugin calls
 - Rust DTO 到 frontend shape 的 typed adapter
 - compatibility boundary 和 legacy payload normalization
-- native/plugin event subscription 与 cleanup
+- native event subscription 与 cleanup
 - side-effect entrypoint；不得承接 Rust 应拥有的 policy
 
 Canonical layer 表：
@@ -104,18 +99,18 @@ Canonical layer 表：
 | Layer | 责任 |
 | --- | --- |
 | Vue 3 frontend | render product surfaces, receive props, emit user intent, show loading/error/empty states |
-| TypeScript native bridge | `src/services/tauriBridge.ts` owns direct Tauri commands, plugins, native events and app/window/plugin APIs |
+| TypeScript native bridge | `src/services/tauriBridge.ts` owns direct Tauri commands, native events and app/window APIs |
 | Service wrappers | `src/services/**/*.ts` owns feature-specific DTO compatibility and side effects through `tauriBridge.ts` |
 | Pinia coordination | `src/stores` owns screen state, orchestration, loading/error lifecycle and service calls |
 | Frontend domains | `src/domains` owns pure presentation rules, labels, sorting and deterministic state derivation |
-| Rust backend/runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence, plugins and security |
+| Rust backend/runtime | `src-tauri/src` owns filesystem, workspace state, references, runtime execution, persistence and security |
 
 硬规则：
 
 - `src/components`、`src/stores`、`src/domains`、`src/composables` 不直接 import Tauri API。
-- Tauri `invoke`、Tauri plugin calls、native event bridge 只放在 `src/services/tauriBridge.ts`。
+- Tauri `invoke`、Tauri 官方 plugin calls、native event bridge 只放在 `src/services/tauriBridge.ts`。
 - `src/services` 可以做 DTO compatibility，但不得成为第二套 backend；TypeScript service wrappers 也受同一限制。
-- Pinia store 不拥有 filesystem、reference merge、LaTeX/Python runtime、plugin host 或 persisted schema policy。
+- Pinia store 不拥有 filesystem、reference merge、LaTeX/Python runtime 或 persisted schema policy。
 - `src/domains` 不接触 native bridge、persistence、filesystem、process authority。
 - Rust 返回 normalized result 后，前端再更新 UI state。
 - 不恢复旧 localStorage / per-workspace migration path 作为 runtime authority；真实数据救援需要用户明确要求。
@@ -142,26 +137,17 @@ Reference 方向是 Rust-first：
 - TS 重写 duplicate/merge/selection/export target/Zotero result policy。
 - store 或 service 变成 reference backend。
 
-## Plugin / Extension 规则
+## Extension 平台规则
 
-当前 plugin model 是 runtime-first、Obsidian-style、local owner-authored plugin 模型，不是 VS Code marketplace clone。
+Extension / plugin 平台当前不属于产品主路径。
 
-Rust/host 负责：
+禁止：
 
-- plugin discovery、manifest validation、permissions
-- persistent extension host lifecycle、crash recovery、workspace-scoped runtime slots
-- commands、capabilities、menus、views、treeviews、tasks、artifacts、outputs
-- secure settings、`globalState`、`workspaceState`
-- prompt isolation、prompt recovery、disable/cancel semantics
-- process bridge 和 PDF/reference bridge 的 permission enforcement
+- 新增或恢复 extension host、extension registry、manifest validation、extension settings、extension tasks、extension artifacts、extension commands、extension capabilities、extension views 或 secure extension settings。
+- 新增 `.scribeflow/extensions`、`src/services/extensions`、`src/domains/extensions`、`src/components/extensions`、`src/stores/extensions.ts` 或 `src-tauri/src/extension_*.rs`。
+- 新增 extension probes、extension runtime build scripts 或 extension host sidecar artifacts。
 
-前端负责：
-
-- Settings 中的 discovery/lifecycle/settings presentation
-- document right sidebar plugin tabs、task timeline、result preview、blocked/waiting status UI
-- command palette 和 action surface presentation
-
-不要把 Settings 做成 plugin workbench；plugin 的实际使用入口默认属于 document right sidebar。
+如果用户之后明确要求恢复 extension 能力，必须先更新 `CURRENT-STATE.md`、重新定义 Rust/bridge/frontend authority 和验证 gate，再独立实现。
 
 ## Editor 规则
 
@@ -197,7 +183,6 @@ Editor 相关改动必须说明并验证：
 - 返回 JSON shape
 - persisted state shape
 - store action contract
-- plugin host event payload
 - reference/runtime DTO contract
 
 没有 dedicated compatibility phase 时，不重命名现有 commands。需要兼容历史 persisted data 时，在 Rust normalizer 或 service DTO adapter 中明确写 compatibility boundary。

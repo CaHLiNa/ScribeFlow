@@ -35,9 +35,6 @@ try {
   const { resolveDocumentWorkspaceTextRoute } = await vite.ssrLoadModule(
     '/src/domains/document/documentWorkspacePreviewRuntime.ts',
   )
-  const { resolveExtensionTargetContext } = await vite.ssrLoadModule(
-    '/src/domains/extensions/extensionTargetContext.ts',
-  )
   const {
     getDocumentWorkflowKind,
     isDocumentWorkflowSource,
@@ -123,16 +120,6 @@ try {
   assert.equal(typeof route?.then, 'undefined')
   assert.equal(route.useWorkspaceSurface, true)
   assert.equal(route.previewMode, 'pdf-artifact')
-
-  const target = resolveExtensionTargetContext({
-    activeTab: 'preview:/tmp/project/note.md',
-  })
-  assert.equal(typeof target?.then, 'undefined')
-  assert.deepEqual(target, {
-    kind: 'workspace',
-    referenceId: '',
-    path: '/tmp/project/note.md',
-  })
 
   assert.equal(assertSync(getDocumentWorkflowKind('/tmp/project/note.md'), 'getDocumentWorkflowKind'), 'markdown')
   assert.equal(assertSync(getDocumentWorkflowKind('preview:/tmp/project/note.md'), 'getDocumentWorkflowKind preview'), null)

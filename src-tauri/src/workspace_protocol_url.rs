@@ -175,7 +175,7 @@ mod tests {
         );
 
         let global_params = workspace_protocol_url_params_from_payload(json!({
-            "filePath": "/tmp/global/extensions/example/package.json",
+            "filePath": "/tmp/global/tools/example/package.json",
             "workspace": {
                 "path": "/tmp/workspace",
                 "workspaceDataDir": "/tmp/data",
@@ -188,7 +188,7 @@ mod tests {
         assert_eq!(global_params.version, "");
         assert_eq!(
             resolve_workspace_protocol_url(global_params),
-            "scribeflow-workspace://localhost/global/extensions/example/package.json"
+            "scribeflow-workspace://localhost/global/tools/example/package.json"
         );
 
         let invalid_params = workspace_protocol_url_params_from_payload(json!({

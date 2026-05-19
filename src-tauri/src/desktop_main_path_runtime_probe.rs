@@ -1,6 +1,5 @@
 use crate::document_workflow_action;
 use crate::document_workspace_preview_state;
-use crate::extension_registry::{self, ExtensionRegistryListParams};
 use crate::fs_tree_runtime::{self, FsTreeDisplayPreferences, FsTreeLoadWorkspaceStateParams};
 use crate::latex_project_graph::{self, LatexProjectGraphParams};
 use crate::markdown_runtime;
@@ -65,45 +64,6 @@ fn write_probe_workspace(workspace_root: &Path) -> Result<(PathBuf, PathBuf, Pat
     write_file(
         &python_path,
         "import json\nprint(json.dumps({'main_path': True, 'value': 42}, sort_keys=True))\n",
-    )?;
-
-    let extension_root = workspace_root
-        .join(".scribeflow")
-        .join("extensions")
-        .join("main-path-runtime-probe");
-    write_file(
-        &extension_root.join("package.json"),
-        &json!({
-            "name": "main-path-runtime-probe",
-            "displayName": "Main Path Runtime Probe",
-            "version": "1.0.0",
-            "description": "Runtime smoke probe extension",
-            "engines": {
-                "scribeflow": "^1.1.0"
-            },
-            "main": "./dist/extension.js",
-            "extensionKind": ["workspace"],
-            "activationEvents": ["onCommand:mainPathRuntimeProbe.inspect"],
-            "contributes": {
-                "commands": [{
-                    "command": "mainPathRuntimeProbe.inspect",
-                    "title": "Inspect Main Path Runtime"
-                }],
-                "capabilities": [{
-                    "id": "document.summarize"
-                }]
-            },
-            "permissions": {
-                "readWorkspaceFiles": true,
-                "readReferenceLibrary": true,
-                "spawnProcess": false
-            }
-        })
-        .to_string(),
-    )?;
-    write_file(
-        &extension_root.join("dist").join("extension.js"),
-        "export async function activate() {}\n",
     )?;
 
     Ok((markdown_path, latex_path, python_path))
@@ -360,20 +320,6 @@ async fn run_probe(root: &Path) -> Result<Value, String> {
         "Citation renderer did not format the probe reference",
     )?;
 
-    let extensions = extension_registry::list_extension_registry(&ExtensionRegistryListParams {
-        global_config_dir: path_string(&global_config_dir),
-        workspace_root: path_string(&workspace_root),
-        locale: "en".to_string(),
-    })?;
-    assert_value(
-        extensions.iter().any(|entry| {
-            entry.id == "main-path-runtime-probe"
-                && entry.scope == "workspace"
-                && entry.status == "available"
-        }),
-        "Extension registry did not discover the workspace plugin",
-    )?;
-
     security::clear_allowed_roots_internal(&scope)?;
     assert_value(
         security::ensure_allowed_workspace_path(&scope, &markdown_path).is_err(),
@@ -385,8 +331,7 @@ async fn run_probe(root: &Path) -> Result<Value, String> {
         "flatFileCount": file_tree.flat_files.len(),
         "markdownHeadings": headings.len(),
         "pythonStdout": python_result.stdout,
-        "references": loaded_library["references"].as_array().map(Vec::len).unwrap_or_default(),
-        "extensions": extensions.len()
+        "references": loaded_library["references"].as_array().map(Vec::len).unwrap_or_default()
     }))
 }
 

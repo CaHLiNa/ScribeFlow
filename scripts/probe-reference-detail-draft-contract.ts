@@ -5,7 +5,6 @@ import {
   buildReferenceDetailDirtyUpdates,
   buildReferenceDetailDraftSnapshot,
   buildReferenceDetailHeroMetaItems,
-  buildReferenceDetailPdfExtensionTarget,
   hasReferenceDetailDraftFieldChanged,
   normalizeReferenceDetailAuthors,
   normalizeReferenceDetailCollectionMemberships,
@@ -89,11 +88,6 @@ assert.deepEqual(buildReferenceDetailDraftSnapshot(reference, collections), {
   tags: ['math'],
 })
 assert.equal(resolveReferenceDetailPdfPath(reference), '/tmp/paper.pdf')
-assert.deepEqual(buildReferenceDetailPdfExtensionTarget(reference), {
-  kind: 'referencePdf',
-  referenceId: 'ref-1',
-  path: '/tmp/paper.pdf',
-})
 assert.deepEqual(
   buildReferenceDetailHeroMetaItems({
     year: '2026',

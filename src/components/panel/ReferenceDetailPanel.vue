@@ -25,7 +25,6 @@
         :can-open-pdf="canOpenPdf"
         :collection-label="collectionLabel"
         :draft="draft"
-        :pdf-extension-action-target="pdfExtensionActionTarget"
         :tag-input="tagInput"
         @add-tag="addTag"
         @attach-pdf="handleAttachPdf"
@@ -120,7 +119,6 @@ const {
   handleOpenPdfInEditor,
   handlePreviewPdf,
   handleRevealPdf,
-  pdfExtensionActionTarget,
 } = useReferenceDetailActions({ selectedReference, emit })
 const {
   addTag,

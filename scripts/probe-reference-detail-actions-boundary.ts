@@ -16,12 +16,12 @@ assert.match(
 )
 assert.match(
   panelSource,
-  /canOpenPdf[\s\S]*handleAttachPdf[\s\S]*handleOpenPdfInEditor[\s\S]*handlePreviewPdf[\s\S]*handleRevealPdf[\s\S]*pdfExtensionActionTarget/,
+  /canOpenPdf[\s\S]*handleAttachPdf[\s\S]*handleOpenPdfInEditor[\s\S]*handlePreviewPdf[\s\S]*handleRevealPdf/,
   'ReferenceDetailPanel must receive PDF action state and handlers from the composable',
 )
 assert.doesNotMatch(
   panelSource,
-  /useEditorStore|openNativeDialog|revealPathInFileManager|resolveReferenceDetailPdfPath|buildReferenceDetailPdfExtensionTarget|attachReferencePdf|editorStore\.openFile|setLeftSidebarPanel\('files'\)|handleRefreshMetadata|refreshReferenceMetadata|selectedReferencePdfPath/,
+  /useEditorStore|openNativeDialog|revealPathInFileManager|resolveReferenceDetailPdfPath|attachReferencePdf|editorStore\.openFile|setLeftSidebarPanel\('files'\)|handleRefreshMetadata|refreshReferenceMetadata|selectedReferencePdfPath/,
   'ReferenceDetailPanel must not directly own reference detail PDF/native action side effects',
 )
 assert.match(
@@ -36,7 +36,6 @@ for (const expected of [
   'useWorkspaceStore',
   'openNativeDialog',
   'revealPathInFileManager',
-  'buildReferenceDetailPdfExtensionTarget',
   'resolveReferenceDetailPdfPath',
   'attachReferencePdf',
 ]) {
@@ -53,7 +52,6 @@ for (const expected of [
   'handleOpenPdfInEditor',
   'handlePreviewPdf',
   'handleRevealPdf',
-  'pdfExtensionActionTarget',
 ]) {
   assert.match(
     actionsSource,

@@ -14,9 +14,6 @@
     "types": ["node"]
   },
   "include": [
-    "scripts/**/*.ts",
-    "src-tauri/resources/**/*.mts",
-    "src-tauri/resources/**/*.ts",
-    ".scribeflow/extensions/**/*.ts"
+    "scripts/**/*.ts"
   ]
 }

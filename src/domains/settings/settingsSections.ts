@@ -33,13 +33,6 @@ export const SETTINGS_SECTION_DEFINITIONS = [
     componentKey: 'system',
   },
   {
-    id: 'extensions',
-    labelKey: 'Extensions',
-    descriptionKey: 'External capabilities, local tools, and extension tasks.',
-    iconKey: 'puzzle',
-    componentKey: 'extensions',
-  },
-  {
     id: 'updates',
     labelKey: 'About',
     descriptionKey: 'Application version, release notes, and downloads.',

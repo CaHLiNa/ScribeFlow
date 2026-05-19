@@ -27,9 +27,6 @@ try {
   workspace.applyWorkspacePreferenceState({ leftSidebarPanel: '' })
   assert.equal(workspace.leftSidebarPanel, 'files')
 
-  workspace.applyWorkspacePreferenceState({ leftSidebarPanel: 'extension:example.tools' })
-  assert.equal(workspace.leftSidebarPanel, 'files')
-
   workspace.applyWorkspacePreferenceState({ leftSidebarPanel: 'unknown' })
   assert.equal(workspace.leftSidebarPanel, 'files')
 

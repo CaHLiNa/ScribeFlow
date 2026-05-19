@@ -42,7 +42,6 @@ import {
   IconBooks,
   IconCpu,
   IconEdit,
-  IconPuzzle,
   IconRefresh,
 } from '@tabler/icons-vue'
 import { useI18n } from '../../i18n'
@@ -61,7 +60,6 @@ const sectionIconRegistry = {
   books: IconBooks,
   cpu: IconCpu,
   edit: IconEdit,
-  puzzle: IconPuzzle,
   refresh: IconRefresh,
 }
 

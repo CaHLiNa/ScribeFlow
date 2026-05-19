@@ -1,5 +1,5 @@
 import { computed } from 'vue'
-import { buildReferenceDetailPdfExtensionTarget, resolveReferenceDetailPdfPath } from '../../domains/references/referenceDetailDraft.ts'
+import { resolveReferenceDetailPdfPath } from '../../domains/references/referenceDetailDraft.ts'
 import { useI18n } from '../../i18n'
 import { revealPathInFileManager } from '../../services/fileTreeSystem'
 import { openNativeDialog } from '../../services/nativeDialog.ts'
@@ -15,9 +15,6 @@ export function useReferenceDetailActions({ selectedReference, emit } = {}) {
 
   const selectedReferencePdfPath = computed(() => resolveReferenceDetailPdfPath(selectedReference?.value))
   const canOpenPdf = computed(() => selectedReferencePdfPath.value.length > 0)
-  const pdfExtensionActionTarget = computed(() =>
-    buildReferenceDetailPdfExtensionTarget(selectedReference?.value)
-  )
 
   function handlePreviewPdf() {
     if (!canOpenPdf.value) return
@@ -59,7 +56,6 @@ export function useReferenceDetailActions({ selectedReference, emit } = {}) {
     handleOpenPdfInEditor,
     handlePreviewPdf,
     handleRevealPdf,
-    pdfExtensionActionTarget,
     selectedReferencePdfPath,
   }
 }

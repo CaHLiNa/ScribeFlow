@@ -1,11 +1,5 @@
 <template>
   <div ref="previewHostRef" class="pdf-artifact-preview-host">
-    <ExtensionActionButtons
-      class="pdf-extension-actions"
-      surface="pdf.preview.actions"
-      :target="pdfExtensionActionTarget"
-      :disabled="!artifactPath"
-    />
     <component
       :is="PdfEmbedSurface"
       v-if="surfaceMountReady"
@@ -39,7 +33,6 @@ import { useWorkspaceStore } from '../../stores/workspace.ts'
 import { dispatchLatexBackwardSync } from '../../services/latex/pdfPreviewSync.ts'
 import { resolvePdfPreviewRevision } from '../../domains/document/pdfPreviewSessionRuntime.ts'
 import PdfEmbedSurface from './PdfEmbedSurface.vue'
-import ExtensionActionButtons from '../extensions/ExtensionActionButtons.vue'
 
 const PDF_PREVIEW_THEME_TOKEN_NAMES = [
   '--surface-base',
@@ -109,12 +102,6 @@ const effectivePdfViewerSpreadMode = computed(() =>
 const effectivePdfViewerLastScale = computed(() =>
   props.compactToolbar ? '' : workspace.pdfViewerLastScale
 )
-const pdfExtensionActionTarget = computed(() => ({
-  kind: props.kind === 'latex' ? 'documentPdf' : 'pdf',
-  referenceId: '',
-  path: props.artifactPath,
-}))
-
 function refreshThemeTokens() {
   themeTokens.value = capturePdfPreviewThemeTokens()
 }
@@ -227,12 +214,4 @@ onUnmounted(() => {
   background: var(--shell-preview-surface, var(--shell-editor-surface));
 }
 
-.pdf-extension-actions {
-  position: absolute;
-  top: 10px;
-  right: 12px;
-  z-index: 5;
-  display: flex;
-  align-items: center;
-}
 </style>
