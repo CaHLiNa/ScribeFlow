@@ -282,6 +282,7 @@ Components over 500 lines:
 - 2026-05-19: The selected-reference DTO wrapper was removed. `src/stores/references.js` now consumes Rust's returned `selectedReference` field directly, and `referenceResolvedQueryDto.js` is limited to remaining lookup/document-reference DTO adapters for synchronous editor/citation APIs.
 - 2026-05-19: The exact-id query DTO reader was removed. `selectReference()` now stores raw selection intent, awaits `refreshResolvedQueryState()`, and lets Rust return the normalized selected reference; the reference table row highlight uses the raw selected id while detail data remains Rust-query-derived.
 - 2026-05-19: DocumentReferencesPanel moved its selected-reference and missing-citation link lookup path to the async Rust search DTO. `references_query_search` now returns `referenceLookup`, `src/stores/references.js` preserves that lookup, and the sidebar panel no longer calls synchronous reference DTO readers for selected document references or missing citation keys.
+- 2026-05-19: The unused `searchAvailableReferencesForDocument()` store wrapper was removed after DocumentReferencesPanel switched to direct `searchReferenceQuery` consumption. Available-reference filtering remains Rust-owned through `references_query_search`, and the store public surface no longer exposes the extra document-search convenience action.
 
 ## Document Runtime Cleanup Log
 

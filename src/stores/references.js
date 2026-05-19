@@ -531,11 +531,6 @@ export const useReferencesStore = defineStore('references', {
       return referenceSearchResult(result)
     },
 
-    async searchAvailableReferencesForDocument(texPath = '', query = '') {
-      const result = await this.searchReferenceQuery(query, { texPath })
-      return result.availableReferences
-    },
-
     async setDocumentReferenceIds(projectRoot = '', texPath = '', referenceIds = []) {
       const mutation = await applyReferenceMutation({
         snapshot: await this.buildLibrarySnapshotPayload(),

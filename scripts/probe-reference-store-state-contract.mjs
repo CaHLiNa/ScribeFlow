@@ -635,10 +635,10 @@ assert.match(
   /function normalizeReferenceLookup\([\s\S]*byId[\s\S]*byKey/,
   'reference search result must normalize missing lookup buckets without rebuilding lookup authority',
 )
-assert.match(
-  actionSource('searchAvailableReferencesForDocument'),
-  /await this\.searchReferenceQuery\(query, \{ texPath \}\)[\s\S]*return result\.availableReferences/,
-  'available-reference search must consume Rust-returned availableReferences',
+assert.doesNotMatch(
+  storeSource,
+  /async searchAvailableReferencesForDocument\(/,
+  'references store must not keep an unused available-reference wrapper after panels consume searchReferenceQuery directly',
 )
 assert.match(
   actionSource('searchRefs'),
