@@ -6,7 +6,7 @@
         "decorations": true,
         "shadow": false,
         "transparent": false,
-        "backgroundColor": "#000000",
+        "backgroundColor": "#1E1E1E",
         "titleBarStyle": "Overlay",
         "hiddenTitle": true,
         "trafficLightPosition": {

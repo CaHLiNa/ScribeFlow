@@ -29,17 +29,24 @@ pub fn sync_window_transparency<R: Runtime>(app: AppHandle<R>) -> Result<(), Str
         };
 
         let ns_window: &NSWindow = unsafe { &*ns_window_ptr.cast() };
-        let clear = NSColor::clearColor();
+        let background = NSColor::colorWithSRGBRed_green_blue_alpha(
+            30.0 / 255.0,
+            30.0 / 255.0,
+            30.0 / 255.0,
+            1.0,
+        );
         let style_mask = ns_window.styleMask() | NSWindowStyleMask::FullSizeContentView;
         ns_window.setStyleMask(style_mask);
         ns_window.setTitleVisibility(NSWindowTitleVisibility::Hidden);
         ns_window.setTitlebarAppearsTransparent(true);
         ns_window.setHasShadow(false);
-        ns_window.setOpaque(false);
-        ns_window.setBackgroundColor(Some(&clear));
+        // Keep the full-height content view, but keep the backing layer opaque.
+        // A transparent backing layer exposes macOS rounded corners during live resize.
+        ns_window.setOpaque(true);
+        ns_window.setBackgroundColor(Some(&background));
         ns_window.setTitlebarSeparatorStyle(NSTitlebarSeparatorStyle::None);
 
-        let _ = window.set_background_color(Some(Color(0, 0, 0, 0)));
+        let _ = window.set_background_color(Some(Color(30, 30, 30, 255)));
     })
     .map_err(|error| error.to_string())
 }
