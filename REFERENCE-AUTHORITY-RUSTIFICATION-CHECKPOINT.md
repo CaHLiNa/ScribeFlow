@@ -44,7 +44,7 @@ JavaScript owns:
 | `references_query.rs` | Query resolution, collection/tag matching, sorting, citation usage index and details. |
 | `references_import.rs` | Reference import parsing, import DTO normalization, and export target resolution/count reporting. |
 | `references_pdf.rs` | PDF metadata/text extraction under workspace/runtime authority. |
-| `references_runtime.rs` | Reference command/runtime glue. |
+| `references_runtime.rs` | Reference command/runtime glue, metadata refresh target lookup, and generated BibTeX document-reference target resolution. |
 | `references_citation.rs` | Citation render command normalization plus `referenceId` target lookup from the current reference snapshot. |
 | `references_zotero.rs` | Zotero sync and remote library flow. |
 | `references_zotero_account.rs` | Zotero account, config and secret handling. |
@@ -91,7 +91,7 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | Mutation target preflight | None for remove-reference target and Zotero delete side-effect gating | Rust mutation result now returns removed target state, `removedReference`, `zoteroDeleteReference`, removed flag and preferred selection without JS performing canonical lookup. |
 | PDF import and assets | None for metadata refresh, PDF asset attach/rename, and PDF import target/result shaping | Rust now owns metadata refresh target lookup, PDF asset attach/rename target resolution, PDF import target/result shaping, and post-mutation selected reference for those flows. |
 | Zotero sync result | None for skipped/success result classification | Rust now owns sync counts, skipped state, selected id, last-sync timestamp and skipped/success result classification. JS still owns local error presentation classification for thrown failures. |
-| Document-reference selection | `resolveDocumentReferenceSelections` | Rust mutation owns TeX path normalization, selected id list pruning, dedupe, add/remove duplicate guards and changed gating. Rust query now returns document-reference selected ids/references/key lookup and available-reference targets; JS helpers only adapt the Rust DTO for existing synchronous editor APIs. |
+| Document-reference selection | `resolveDocumentReferenceSelections` | Rust mutation owns TeX path normalization, selected id list pruning, dedupe, add/remove duplicate guards and changed gating. Rust query now returns document-reference selected ids/references/key lookup and available-reference targets, and generated BibTeX sync resolves selected document references in Rust before writing `.bib`; JS helpers only adapt the Rust DTO for existing synchronous editor APIs. |
 | Search and filtering | None | Rust query now owns reference search filtering and document available-reference search filtering through `references_query_search`; JS only requests async search DTOs and renders returned results. |
 
 ## Migration Priority
@@ -126,6 +126,10 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      plus `referenceIds` or `referenceId` through `src/services/references/bibtexExport.js`,
      and Rust owns ordered id filtering, JSON target validation, missing-id
      handling and exported-count reporting.
+     Generated document `.bib` sync now also resolves TeX document-reference
+     targets in Rust: `syncBibFileForTex()` passes the current snapshot and
+     `documentReferenceSelections` to `references_write_bib_file`, which filters
+     selected references before writing.
    - Remaining: keep export serialization and target validation in Rust when
      adding future export formats.
 
@@ -203,7 +207,8 @@ For each migration slice:
   refresh target lookup, remove target/Zotero delete side-effect gating,
   document-reference mutation derivation, import input preflight,
   export target validation, PDF asset attach/rename
-  target resolution, PDF import target/result shaping and Zotero
+  target resolution, generated `.bib` document target resolution, PDF import
+  target/result shaping and Zotero
   skipped/success result classification have moved to Rust.
 - Remaining query work is now narrower: selection-id UI affordances and
   returned-query DTO mapping are explicitly isolated as DTO readers without

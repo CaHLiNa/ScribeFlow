@@ -75,11 +75,22 @@ try {
     [{ id: 'ref-a' }],
     'ieee',
   )
+  const documentWriteResult = await writeReferenceBibFile(
+    '/tmp/paper.tex',
+    [{ id: 'ref-a' }, { id: 'ref-b' }],
+    'apa',
+    {
+      documentReferenceSelections: {
+        '/tmp/paper.tex': ['ref-b'],
+      },
+    },
+  )
 
   assert.deepEqual(
     calls.map((call) => call.cmd),
     [
       'references_scan_workspace_styles',
+      'references_write_bib_file',
       'references_write_bib_file',
       'references_write_bib_file',
     ],
@@ -95,9 +106,18 @@ try {
     references: [{ id: 'ref-a' }],
     citationStyle: 'ieee',
   })
+  assert.deepEqual(calls[3].args.params, {
+    texPath: '/tmp/paper.tex',
+    references: [{ id: 'ref-a' }, { id: 'ref-b' }],
+    citationStyle: 'apa',
+    documentReferenceSelections: {
+      '/tmp/paper.tex': ['ref-b'],
+    },
+  })
   assert.deepEqual(scanResult, [])
   assert.equal(invalidWriteResult, '')
   assert.equal(validWriteResult, '/tmp/main.tex.bib')
+  assert.equal(documentWriteResult, '/tmp/paper.tex.bib')
 
   console.log('reference file runtime rust normalization probe passed')
 } finally {

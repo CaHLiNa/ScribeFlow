@@ -328,8 +328,11 @@ export const useReferencesStore = defineStore('references', {
       if (!normalizedTexPath) return ''
       return writeReferenceBibFile(
         normalizedTexPath,
-        this.documentReferencesForTex(normalizedTexPath),
-        this.citationStyle
+        this.references,
+        this.citationStyle,
+        {
+          documentReferenceSelections: this.documentReferenceSelections,
+        }
       )
     },
 

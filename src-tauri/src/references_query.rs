@@ -268,6 +268,24 @@ fn selected_document_reference_ids(
     normalize_document_reference_ids(selected_ids, &valid_reference_ids(references))
 }
 
+pub(crate) fn document_reference_values_for_tex(
+    document_reference_selections: &Value,
+    tex_path: &str,
+    references: &[Value],
+) -> Vec<Value> {
+    let selected_ids =
+        selected_document_reference_ids(document_reference_selections, tex_path, references);
+    references
+        .iter()
+        .filter(|reference| {
+            selected_ids
+                .iter()
+                .any(|id| id == &trim_string(reference.get("id")))
+        })
+        .cloned()
+        .collect()
+}
+
 fn build_document_reference_entry(
     reference_ids: Vec<String>,
     references: &[Value],

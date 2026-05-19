@@ -587,6 +587,16 @@ assert.match(
   'references store must delegate selected document-reference resolution',
 )
 assert.match(
+  actionSource('syncBibFileForTex'),
+  /writeReferenceBibFile\([\s\S]*normalizedTexPath,[\s\S]*this\.references,[\s\S]*this\.citationStyle,[\s\S]*documentReferenceSelections: this\.documentReferenceSelections/,
+  'syncBibFileForTex must pass full snapshot and document selections to Rust for bib target resolution',
+)
+assert.doesNotMatch(
+  actionSource('syncBibFileForTex'),
+  /documentReferencesForTex|getDocumentReferenceIds|resolveDocumentReferences/,
+  'syncBibFileForTex must not resolve selected document references in JS before writing BibTeX',
+)
+assert.match(
   storeSource,
   /resolveDocumentReferenceByKey/,
   'references store must delegate document-reference key lookup',

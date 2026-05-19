@@ -26,12 +26,16 @@ export function scanWorkspaceCitationStyles(workspacePath = '') {
   })
 }
 
-export function writeReferenceBibFile(texPath = '', references = [], citationStyle = 'apa') {
+export function writeReferenceBibFile(texPath = '', references = [], citationStyle = 'apa', options = {}) {
+  const params = {
+    texPath,
+    references,
+    citationStyle,
+  }
+  if (Object.prototype.hasOwnProperty.call(options, 'documentReferenceSelections')) {
+    params.documentReferenceSelections = options.documentReferenceSelections
+  }
   return invoke('references_write_bib_file', {
-    params: {
-      texPath,
-      references,
-      citationStyle,
-    },
+    params,
   })
 }
