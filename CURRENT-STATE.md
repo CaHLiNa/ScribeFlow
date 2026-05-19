@@ -69,7 +69,7 @@ Boundary rules:
 - Rust manifest validation enforces the single-container right-sidebar contract for normal plugins.
 - Vue owns plugin prompt rendering, plugin sidebar rendering, command palette integration and runtime event presentation through the `src/services` bridge.
 - JS remains a thin bridge and UI coordination layer, not a second backend.
-- `src/domains` must not gain native bridge, persistence, filesystem or process authority; existing document/editor domain service imports are recorded as cleanup debt in `ARCHITECTURE-BOUNDARY-MAP.md`.
+- `src/domains` must not gain native bridge, persistence, filesystem or process authority; any remaining cleanup debt should be tracked in code-adjacent tasks rather than stale planning documents.
 - Tauri command payload shape changes must update Rust command handling, JS bridge DTO mapping, store call sites and regression verification in the same commit.
 - Editor core changes require a separate editor-specific phase; global module cleanup must not alter cursor, selection, reveal, scroll, CodeMirror behavior, editor session payloads or editor event timing.
 
@@ -78,7 +78,7 @@ Current reference authority direction:
 - Reference cleanup is Rust-first: Rust owns reference truth, filesystem authority, persistence, mutation/result normalization, citation/render targets, imports, PDF assets and Zotero sync.
 - `src/domains/references/referenceStoreState.js` now contains only UI state/display helpers; Rust query DTO readers live separately in `src/domains/references/referenceResolvedQueryDto.js`.
 - Future reference work should shrink JS to UI presentation, DTO compatibility, Tauri bridge wrappers and short-term Pinia coordination.
-- `REFERENCE-AUTHORITY-RUSTIFICATION-CHECKPOINT.md` records which helpers may remain UI-only, which are transitional, and which should migrate back to Rust runtime contracts.
+- Reference helper classification should remain code-adjacent: UI-only helpers stay in JS domains, DTO compatibility stays near service/domain adapters, and runtime authority belongs in Rust.
 
 Allowed/disallowed examples:
 
@@ -475,7 +475,7 @@ Completed engineering scope:
 - leaf Rustification for read-only parsing, diagnostics, path status and resolver seams
 - bundle size and heavy runtime loading guards
 - cleanup of historical migration code
-- rewritten current documentation and README
+- rewritten current documentation and agent contract
 
 Not in scope:
 

@@ -12,7 +12,7 @@ ScribeFlow 是一个精简后的 Tauri 桌面应用仓库。当前保留：
 - `.github/workflows/release-installers.yml`：桌面安装包发布 workflow
 - `package.json`、`vite.config.js`、`index.html`：frontend build contract
 
-不要假设仓库里还有旧 `docs/`、旧 `web/` 或历史 sidecar 项目。历史说明文档已删除，当前事实以 `README.md`、`CURRENT-STATE.md` 和代码为准。
+不要假设仓库里还有旧 `docs/`、旧 `web/` 或历史 sidecar 项目。历史说明文档已删除，当前事实以 `CURRENT-STATE.md`、`AGENTS.md` 和代码为准。
 
 ## 产品目标
 
