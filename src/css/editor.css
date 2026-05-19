@@ -178,9 +178,7 @@
   width: 0;
   overflow: visible;
   opacity: 0;
-  transition:
-    width var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
-    opacity var(--inline-dock-surface-duration, 180ms) ease;
+  transition: opacity var(--inline-dock-surface-duration, 180ms) ease;
 }
 
 .workbench-inline-dock-resize-slot.is-visible {
@@ -213,9 +211,8 @@
   contain: layout paint;
   opacity: 1;
   transform: translateX(0);
-  will-change: width, opacity, transform;
+  will-change: opacity, transform;
   transition:
-    width var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
     opacity var(--inline-dock-fade-duration, 210ms) ease,
     transform var(--inline-dock-motion-duration, 390ms) var(--inline-dock-motion-ease, cubic-bezier(0.3, 0, 0.2, 1)),
     border-left-color var(--inline-dock-surface-duration, 180ms) ease,
