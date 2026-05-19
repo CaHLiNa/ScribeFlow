@@ -924,6 +924,7 @@ pub async fn references_query_search_resolved(
         "sortKey": sort_key,
         "texPath": params.tex_path.trim(),
         "documentReferenceIds": selected_ids,
+        "referenceLookup": build_reference_lookup(&params.references),
         "references": search_reference_values(&sorted_references, &normalized_query),
         "documentReferences": search_reference_values(&document_references, &normalized_query),
         "availableReferences": search_reference_values(&available_references, &normalized_query),
@@ -1121,6 +1122,10 @@ mod tests {
 
         assert_eq!(result["normalizedQuery"].as_str(), Some("grace"));
         assert_eq!(result["documentReferenceIds"], json!(["ref-1", "ref-2"]));
+        assert_eq!(
+            result["referenceLookup"]["byKey"]["hopper2025"]["id"].as_str(),
+            Some("ref-2")
+        );
         assert_eq!(
             result["references"]
                 .as_array()

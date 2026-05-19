@@ -92,7 +92,7 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
 | PDF import and assets | None for metadata refresh, PDF asset attach/rename, and PDF import target/result shaping | Rust now owns metadata refresh target lookup, PDF asset attach/rename target resolution, PDF import target/result shaping, and post-mutation selected reference for those flows. |
 | Zotero sync result | None for skipped/success result classification | Rust now owns sync counts, skipped state, selected id, last-sync timestamp and skipped/success result classification. JS still owns local error presentation classification for thrown failures. |
 | Document-reference selection | `resolveDocumentReferenceSelections` | Rust mutation owns TeX path normalization, selected id list pruning, dedupe, add/remove duplicate guards and changed gating. Rust query now returns document-reference selected ids/references/key lookup and available-reference targets, and generated BibTeX sync resolves selected document references in Rust before writing `.bib`; JS helpers only adapt the Rust DTO for existing synchronous editor APIs. |
-| Search and filtering | None | Rust query now owns reference search filtering and document available-reference search filtering through `references_query_search`; JS only requests async search DTOs and renders returned results. |
+| Search and filtering | None | Rust query now owns reference search filtering, document selected-reference DTOs, document available-reference search filtering and lookup maps through `references_query_search`; JS only requests async search DTOs and renders returned results. |
 
 ## Migration Priority
 
@@ -177,7 +177,9 @@ Zotero, search, or snapshot policy and should move back to Rust contracts:
      longer falls back to prior Pinia state, current selected-reference id, or
      the first filtered row when Rust does not return those fields.
      Search filtering has moved to `references_query_search`, and CitationPalette
-     plus DocumentReferencesPanel consume async Rust search DTOs.
+     plus DocumentReferencesPanel consume async Rust search DTOs. DocumentReferencesPanel
+     now also gets selected document references and missing-citation library links
+     from the Rust search DTO instead of synchronous store DTO readers.
      The extra `hasReferenceById` query DTO helper is gone; PDF dock stale-tab
      pruning uses the Rust-normalized snapshot in the UI dock helper instead of
      `referenceLookup.byId`.

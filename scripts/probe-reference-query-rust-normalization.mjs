@@ -176,6 +176,7 @@ try {
         sortKey: normalizeString(params.sortKey) || 'year-desc',
         texPath,
         documentReferenceIds: selectedIds,
+        referenceLookup: buildReferenceLookup(references),
         references: searchReferences(references, params.query),
         documentReferences: searchReferences(documentReferences, params.query),
         availableReferences: searchReferences(availableReferences, params.query),
@@ -250,6 +251,7 @@ try {
   assert.deepEqual(searchResult.references.map((reference) => reference.id), ['ref-b'])
   assert.deepEqual(searchResult.documentReferences, [])
   assert.deepEqual(searchResult.availableReferences.map((reference) => reference.id), ['ref-b'])
+  assert.deepEqual(searchResult.referenceLookup.byKey.alpha2026.id, 'ref-a')
 
   console.log('reference query rust normalization probe passed')
 } finally {

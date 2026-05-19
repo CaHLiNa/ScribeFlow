@@ -114,7 +114,18 @@ function referenceSearchResult(result = {}) {
     documentReferences: Array.isArray(result?.documentReferences) ? result.documentReferences : [],
     availableReferences: Array.isArray(result?.availableReferences) ? result.availableReferences : [],
     documentReferenceIds: Array.isArray(result?.documentReferenceIds) ? result.documentReferenceIds : [],
+    referenceLookup: normalizeReferenceLookup(result?.referenceLookup),
   }
+}
+
+function normalizeReferenceLookup(referenceLookup = {}) {
+  const byId = referenceLookup?.byId && typeof referenceLookup.byId === 'object' && !Array.isArray(referenceLookup.byId)
+    ? referenceLookup.byId
+    : {}
+  const byKey = referenceLookup?.byKey && typeof referenceLookup.byKey === 'object' && !Array.isArray(referenceLookup.byKey)
+    ? referenceLookup.byKey
+    : {}
+  return { byId, byKey }
 }
 
 export const useReferencesStore = defineStore('references', {

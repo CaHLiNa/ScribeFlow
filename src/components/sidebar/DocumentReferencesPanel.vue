@@ -191,10 +191,28 @@ const query = ref('')
 const referenceScopePath = ref(props.filePath)
 const citedKeys = ref([])
 const availableResults = ref([])
+const documentReferenceSearchState = ref(buildDocumentReferenceSearchState())
 let referenceScopeRequestId = 0
-let referenceSearchRequestId = 0
+let documentReferenceSearchRequestId = 0
+let availableReferenceSearchRequestId = 0
 let referenceScopeTimer = null
 const hasSearchQuery = computed(() => query.value.trim().length > 0)
+
+function buildDocumentReferenceSearchState(result = {}) {
+  const referenceLookup = result?.referenceLookup && typeof result.referenceLookup === 'object'
+    ? result.referenceLookup
+    : {}
+  const byId = referenceLookup.byId && typeof referenceLookup.byId === 'object' && !Array.isArray(referenceLookup.byId)
+    ? referenceLookup.byId
+    : {}
+  const byKey = referenceLookup.byKey && typeof referenceLookup.byKey === 'object' && !Array.isArray(referenceLookup.byKey)
+    ? referenceLookup.byKey
+    : {}
+  return {
+    documentReferences: Array.isArray(result?.documentReferences) ? result.documentReferences : [],
+    referenceLookup: { byId, byKey },
+  }
+}
 
 const documentContent = computed(() =>
   typeof filesStore.fileContents?.[props.filePath] === 'string'
@@ -202,7 +220,7 @@ const documentContent = computed(() =>
     : ''
 )
 const documentReferencePath = computed(() => referenceScopePath.value || props.filePath)
-const selectedReferences = computed(() => referencesStore.documentReferencesForTex(documentReferencePath.value))
+const selectedReferences = computed(() => documentReferenceSearchState.value.documentReferences)
 const citationCoverage = computed(() =>
   buildDocumentCitationCoverage({
     citedKeys: citedKeys.value,
@@ -213,7 +231,7 @@ const unusedReferences = computed(() => citationCoverage.value.unusedReferences)
 const missingCitations = computed(() =>
   citationCoverage.value.missingCitationKeys.map((key) => ({
     key,
-    reference: referencesStore.getByKey(key),
+    reference: documentReferenceSearchState.value.referenceLookup.byKey[key] || null,
   }))
 )
 const missingCitationPreview = computed(() => missingCitations.value.slice(0, 5))
@@ -309,18 +327,29 @@ async function removeReference(referenceId = '') {
   await referencesStore.removeDocumentReference(workspace.globalConfigDir, documentReferencePath.value, referenceId)
 }
 
+async function refreshDocumentReferenceSearchState() {
+  const requestId = ++documentReferenceSearchRequestId
+  const result = await referencesStore
+    .searchReferenceQuery('', { texPath: documentReferencePath.value })
+    .catch(() => null)
+  if (requestId !== documentReferenceSearchRequestId) return
+  documentReferenceSearchState.value = buildDocumentReferenceSearchState(result)
+}
+
 async function refreshAvailableResults() {
-  const requestId = ++referenceSearchRequestId
+  const requestId = ++availableReferenceSearchRequestId
   const normalizedQuery = query.value.trim()
   if (!normalizedQuery) {
     availableResults.value = []
     return
   }
-  const results = await referencesStore
-    .searchAvailableReferencesForDocument(documentReferencePath.value, normalizedQuery)
-    .catch(() => [])
-  if (requestId !== referenceSearchRequestId) return
-  availableResults.value = results.slice(0, 12)
+  const result = await referencesStore
+    .searchReferenceQuery(normalizedQuery, { texPath: documentReferencePath.value })
+    .catch(() => null)
+  if (requestId !== availableReferenceSearchRequestId) return
+  availableResults.value = Array.isArray(result?.availableReferences)
+    ? result.availableReferences.slice(0, 12)
+    : []
 }
 
 watch(
@@ -331,22 +360,30 @@ watch(
 
 watch(
   () => [
-    query.value,
     documentReferencePath.value,
     referencesStore.resolvedQueryState,
     referencesStore.sortKey,
     referencesStore.references,
   ],
   () => {
+    void refreshDocumentReferenceSearchState()
     void refreshAvailableResults()
   },
   { immediate: true }
 )
 
+watch(
+  () => query.value,
+  () => {
+    void refreshAvailableResults()
+  }
+)
+
 onUnmounted(() => {
   clearReferenceScopeTimer()
   referenceScopeRequestId += 1
-  referenceSearchRequestId += 1
+  documentReferenceSearchRequestId += 1
+  availableReferenceSearchRequestId += 1
 })
 </script>
 

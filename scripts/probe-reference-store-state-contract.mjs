@@ -626,6 +626,16 @@ assert.match(
   'searchReferenceQuery must send reference search inputs to Rust',
 )
 assert.match(
+  storeSource,
+  /referenceLookup:\s*normalizeReferenceLookup\(result\?\.referenceLookup\)/,
+  'reference search result must preserve Rust-returned referenceLookup',
+)
+assert.match(
+  storeSource,
+  /function normalizeReferenceLookup\([\s\S]*byId[\s\S]*byKey/,
+  'reference search result must normalize missing lookup buckets without rebuilding lookup authority',
+)
+assert.match(
   actionSource('searchAvailableReferencesForDocument'),
   /await this\.searchReferenceQuery\(query, \{ texPath \}\)[\s\S]*return result\.availableReferences/,
   'available-reference search must consume Rust-returned availableReferences',
@@ -647,8 +657,28 @@ assert.match(
 )
 assert.match(
   documentReferencesPanelSource,
-  /await referencesStore[\s\S]*\.searchAvailableReferencesForDocument\(documentReferencePath\.value, normalizedQuery\)/,
-  'DocumentReferencesPanel search must use the Rust-backed available-reference search action',
+  /documentReferenceSearchState\s*=\s*ref\(buildDocumentReferenceSearchState\(\)\)/,
+  'DocumentReferencesPanel must keep selected document references in async Rust search state',
+)
+assert.match(
+  documentReferencesPanelSource,
+  /await referencesStore[\s\S]*\.searchReferenceQuery\('', \{ texPath: documentReferencePath\.value \}\)/,
+  'DocumentReferencesPanel selected references must use the Rust-backed search DTO',
+)
+assert.match(
+  documentReferencesPanelSource,
+  /await referencesStore[\s\S]*\.searchReferenceQuery\(normalizedQuery, \{ texPath: documentReferencePath\.value \}\)[\s\S]*availableReferences/,
+  'DocumentReferencesPanel available-reference search must consume Rust-returned search DTOs',
+)
+assert.match(
+  documentReferencesPanelSource,
+  /reference:\s*documentReferenceSearchState\.value\.referenceLookup\.byKey\[key\] \|\| null/,
+  'DocumentReferencesPanel missing citation links must use the Rust-returned referenceLookup',
+)
+assert.doesNotMatch(
+  documentReferencesPanelSource,
+  /documentReferencesForTex|getByKey|getDocumentReferenceByKey|getDocumentReferenceIds|isReferenceSelectedForTex|searchAvailableReferencesForDocument/,
+  'DocumentReferencesPanel must not use synchronous reference DTO readers after moving to Rust search state',
 )
 assert.match(
   storeSource,
